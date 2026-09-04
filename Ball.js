@@ -1,7 +1,6 @@
 export default class Ball {
   constructor({
-    width,
-    height,
+    screen,
     radius = 30,
     maxSpeed = 200,
     color = "#E06D53",
@@ -14,7 +13,7 @@ export default class Ball {
     this.color = color;
     this.maxSpeed = maxSpeed;
 
-    this.#init({ width, height });
+    this.#init({ screen });
   }
 
   update({ delta }) {
@@ -32,9 +31,9 @@ export default class Ball {
     ctx.restore();
   }
 
-  #init({ width, height }) {
-    this.x = Math.random() * width;
-    this.y = Math.random() * height;
+  #init({ screen }) {
+    this.x = Math.random() * screen.width;
+    this.y = Math.random() * screen.height;
 
     this.#setRandomVelocity();
   }

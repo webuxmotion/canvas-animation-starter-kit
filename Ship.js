@@ -1,7 +1,7 @@
 export default class Ship {
-  constructor({ width, height, maxSpeed = 500 }) {
-    this.x = width / 2;
-    this.y = height / 2;
+  constructor({ screen, maxSpeed = 500 }) {
+    this.x = screen.width / 2;
+    this.y = screen.height / 2;
     this.angle = 0;
     this.rotationSpeed = Math.PI * 2;
     this.engineOn = false;
@@ -12,7 +12,7 @@ export default class Ship {
     this.currentSpeed = 0;
   }
 
-  update({ delta, width, height, keys }) {
+  update({ delta, screen, keys }) {
     if (keys.ArrowRight && !keys.ArrowLeft) {
       this.angle += this.rotationSpeed * delta;
     }
@@ -43,10 +43,10 @@ export default class Ship {
     this.x += this.vx * delta;
     this.y += this.vy * delta;
 
-    if (this.x > width) this.x = 0;
-    if (this.x < 0) this.x = width;
-    if (this.y > height) this.y = 0;
-    if (this.y < 0) this.y = height;
+    if (this.x > screen.width) this.x = 0;
+    if (this.x < 0) this.x = screen.width;
+    if (this.y > screen.height) this.y = 0;
+    if (this.y < 0) this.y = screen.height;
   }
 
   draw(ctx) {
