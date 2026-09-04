@@ -1,4 +1,4 @@
-import { SquareAnimation } from "./SquareAnimation.js";
+import Ship from "./Ship.js";
 
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
@@ -8,7 +8,12 @@ let width;
 let height;
 let prevTime = 0;
 
-const square = new SquareAnimation(1000, 20);
+const keys = {
+  ArrowUp: false,
+  ArrowLeft: false,
+  ArrowDown: false,
+  ArrowRight: false,
+};
 
 function init() {
   dpr = window.devicePixelRatio || 1;
@@ -24,19 +29,31 @@ function init() {
   ctx.scale(dpr, dpr);
 }
 
+init();
+
+const ship = new Ship(width, height);
+
 function loop(time) {
   const delta = Math.min((time - prevTime) / 1000, 0.1);
   prevTime = time;
   ctx.clearRect(0, 0, width, height);
 
-  square.update(delta, width, height);
-  square.draw(ctx);
+  ship.update({ delta, width, height, keys });
+  ship.draw(ctx);
 
   requestAnimationFrame(loop);
 }
 
+window.addEventListener("keydown", (event) => {
+  keys[event.code] = true;
+});
+
+window.addEventListener("keyup", (event) => {
+  keys[event.code] = false;
+});
+
 window.addEventListener("resize", init);
-init();
+
 requestAnimationFrame((time) => {
   prevTime = time;
   requestAnimationFrame(loop);
