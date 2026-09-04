@@ -1,4 +1,6 @@
+import BallsComposer from "./BallsComposer.js";
 import Ship from "./Ship.js";
+import InputHandler from "./InputHandler.js";
 
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
@@ -6,15 +8,11 @@ const ctx = canvas.getContext("2d");
 let dpr;
 let width;
 let height;
-let ship;
+let input;
 let prevTime = 0;
 
-const keys = {
-  ArrowUp: false,
-  ArrowLeft: false,
-  ArrowDown: false,
-  ArrowRight: false,
-};
+let ship;
+let ballsComposer;
 
 function init() {
   dpr = window.devicePixelRatio || 1;
@@ -31,26 +29,23 @@ function init() {
 }
 
 init();
-ship = new Ship(width, height);
+input = new InputHandler();
+ship = new Ship({ width, height });
+
+ballsComposer = new BallsComposer({ width, height });
 
 function loop(time) {
   const delta = Math.min((time - prevTime) / 1000, 0.1);
   prevTime = time;
   ctx.clearRect(0, 0, width, height);
 
-  ship.update({ delta, width, height, keys });
+  ship.update({ delta, width, height, keys: input.keys });
   ship.draw(ctx);
+
+  ballsComposer.tick({ delta, ctx, width, height });
 
   requestAnimationFrame(loop);
 }
-
-window.addEventListener("keydown", (event) => {
-  keys[event.code] = true;
-});
-
-window.addEventListener("keyup", (event) => {
-  keys[event.code] = false;
-});
 
 window.addEventListener("resize", init);
 

@@ -1,5 +1,5 @@
 export default class Ship {
-  constructor(width, height) {
+  constructor({ width, height, maxSpeed = 500 }) {
     this.x = width / 2;
     this.y = height / 2;
     this.angle = 0;
@@ -8,7 +8,7 @@ export default class Ship {
     this.thrust = 0;
     this.vx = 0;
     this.vy = 0;
-    this.maxSpeed = 500;
+    this.maxSpeed = maxSpeed;
     this.currentSpeed = 0;
   }
 
@@ -50,7 +50,7 @@ export default class Ship {
   }
 
   draw(ctx) {
-    this._drawUI(ctx);
+    this.#drawUI(ctx);
 
     ctx.save();
     ctx.translate(this.x, this.y);
@@ -78,21 +78,21 @@ export default class Ship {
     ctx.restore();
   }
 
-  _drawUI(ctx) {
+  #drawUI(ctx) {
     const speedToShow = Math.floor(Math.min(this.currentSpeed, 500));
     const box = {
       height: 300,
       width: 30,
-      x: 30, 
-      y: 50
-    }
+      x: 30,
+      y: 50,
+    };
     const filledBox = {
       width: box.width,
-      height: box.height * speedToShow / this.maxSpeed,
-      x: box.x
-    }
+      height: (box.height * speedToShow) / this.maxSpeed,
+      x: box.x,
+    };
     filledBox.y = box.height + box.y - filledBox.height;
-
+    ctx.beginPath();
     ctx.rect(box.x, box.y, box.width, box.height);
     ctx.stroke();
     ctx.fillRect(filledBox.x, filledBox.y, filledBox.width, filledBox.height);
