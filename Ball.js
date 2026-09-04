@@ -12,8 +12,6 @@ export default class Ball {
     this.radius = radius;
     this.color = color;
     this.maxSpeed = maxSpeed;
-
-    this.#init({ screen });
   }
 
   update({ delta }) {
@@ -29,17 +27,5 @@ export default class Ball {
     ctx.arc(0, 0, this.radius, 0, Math.PI * 2, 0);
     ctx.fill();
     ctx.restore();
-  }
-
-  #init({ screen }) {
-    this.x = Math.random() * screen.width;
-    this.y = Math.random() * screen.height;
-
-    this.#setRandomVelocity();
-  }
-
-  #setRandomVelocity() {
-    this.vx = Math.random() * this.maxSpeed - this.maxSpeed / 2;
-    this.vy = Math.random() * this.maxSpeed - this.maxSpeed / 2;
   }
 }
