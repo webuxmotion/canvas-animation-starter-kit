@@ -8,6 +8,8 @@ export default class Ship {
     this.thrust = 0;
     this.vx = 0;
     this.vy = 0;
+    this.maxSpeed = 500;
+    this.currentSpeed = 0;
   }
 
   update({ delta, width, height, keys }) {
@@ -32,6 +34,12 @@ export default class Ship {
     this.vx += ax * delta;
     this.vy += ay * delta;
 
+    this.currentSpeed = Math.hypot(this.vx, this.vy);
+    if (this.currentSpeed > this.maxSpeed) {
+      this.vx = (this.vx / this.currentSpeed) * this.maxSpeed;
+      this.vy = (this.vy / this.currentSpeed) * this.maxSpeed;
+    }
+
     this.x += this.vx * delta;
     this.y += this.vy * delta;
 
@@ -39,10 +47,11 @@ export default class Ship {
     if (this.x < 0) this.x = width;
     if (this.y > height) this.y = 0;
     if (this.y < 0) this.y = height;
-
   }
 
   draw(ctx) {
+    this._drawUI(ctx);
+
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
@@ -67,5 +76,27 @@ export default class Ship {
     ctx.fillRect(-15 - 6, -5, 6, 25);
 
     ctx.restore();
+  }
+
+  _drawUI(ctx) {
+    const speedToShow = Math.floor(Math.min(this.currentSpeed, 500));
+    const box = {
+      height: 300,
+      width: 30,
+      x: 30, 
+      y: 50
+    }
+    const filledBox = {
+      width: box.width,
+      height: box.height * speedToShow / this.maxSpeed,
+      x: box.x
+    }
+    filledBox.y = box.height + box.y - filledBox.height;
+
+    ctx.rect(box.x, box.y, box.width, box.height);
+    ctx.stroke();
+    ctx.fillRect(filledBox.x, filledBox.y, filledBox.width, filledBox.height);
+    ctx.font = "bold 20px Arial";
+    ctx.fillText(speedToShow, box.x, box.y + box.height + 20);
   }
 }

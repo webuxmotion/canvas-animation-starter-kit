@@ -6,6 +6,7 @@ const ctx = canvas.getContext("2d");
 let dpr;
 let width;
 let height;
+let ship;
 let prevTime = 0;
 
 const keys = {
@@ -30,8 +31,7 @@ function init() {
 }
 
 init();
-
-const ship = new Ship(width, height);
+ship = new Ship(width, height);
 
 function loop(time) {
   const delta = Math.min((time - prevTime) / 1000, 0.1);
