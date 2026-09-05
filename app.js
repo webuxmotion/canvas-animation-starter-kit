@@ -14,6 +14,7 @@ const segments = new Segments();
 start((delta) => {
   segments.tick({
     ctx,
+    delta,
   });
 
   ship.update({
