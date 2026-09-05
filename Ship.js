@@ -10,6 +10,9 @@ export default class Ship {
     this.vy = 0;
     this.maxSpeed = maxSpeed;
     this.currentSpeed = 0;
+    this.radius = 30;
+    this.bounce = 0.5;
+    this.friction = 0.99;
   }
 
   update({ delta, screen, keys }) {
@@ -43,10 +46,20 @@ export default class Ship {
     this.x += this.vx * delta;
     this.y += this.vy * delta;
 
-    if (this.x > screen.width) this.x = 0;
-    if (this.x < 0) this.x = screen.width;
+    if (this.x + this.radius > screen.width) {
+      this.x = screen.width - this.radius;
+      this.vx *= -this.bounce;
+    };
+    if (this.x - this.radius < 0) {
+      this.x = this.radius;
+      this.vx *= -this.bounce;
+    };
     if (this.y > screen.height) this.y = 0;
     if (this.y < 0) this.y = screen.height;
+
+    const currentFriction = Math.pow(this.friction, delta * 60);
+    this.vx *= currentFriction;
+    this.vy *= currentFriction;
   }
 
   draw(ctx) {
@@ -65,11 +78,11 @@ export default class Ship {
 
     ctx.fillStyle = "black";
     ctx.beginPath();
-    ctx.moveTo(0, -30);
-    ctx.lineTo(25, 30);
+    ctx.moveTo(0, -this.radius);
+    ctx.lineTo(25, this.radius);
     ctx.lineTo(0, 20);
-    ctx.lineTo(-25, 30);
-    ctx.lineTo(0, -30);
+    ctx.lineTo(-25, this.radius);
+    ctx.lineTo(0, -this.radius);
     ctx.fill();
 
     ctx.fillRect(15, -5, 6, 25);

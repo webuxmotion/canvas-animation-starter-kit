@@ -5,8 +5,8 @@ export default class Fountain {
     this.balls = [];
     this.ballsCount = ballsCount;
     this.color = color;
-    this.radius = 3;
-    this.gravity = 300;
+    this.radius = 2;
+    this.gravity = 800;
 
     this.#init({ screen });
   }
@@ -34,13 +34,13 @@ export default class Fountain {
 
   setBallRandomParams({ ball, screen }) {
     ball.x = screen.width / 2;
-    ball.y = screen.height + Math.random() * 200;
+    ball.y = screen.height + Math.random() * 50;
 
     this.setRandomVelocity({ ball });
   }
 
   setRandomVelocity({ ball }) {
     ball.vx = Math.random() * -70 + 35;
-    ball.vy = Math.random() * -500;
+    ball.vy = Math.random() * -1000;
   }
 }
