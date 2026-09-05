@@ -8,7 +8,7 @@ const { screen, input, ctx, start } = new Game("canvas");
 
 const ship = new Ship({ screen });
 const ballsComposer = new BallsComposer({ screen });
-const fountain = new Fountain({ screen, ballsCount: 100, color: "black" });
+const fountain = new Fountain({ screen, ballsCount: 100, color: "#7ed93f" });
 const segments = new Segments();
 
 start((delta) => {
