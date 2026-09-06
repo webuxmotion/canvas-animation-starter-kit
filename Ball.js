@@ -1,10 +1,5 @@
 export default class Ball {
-  constructor({
-    screen,
-    radius = 30,
-    maxSpeed = 200,
-    color = "#E06D53",
-  }) {
+  constructor({ radius = 30, maxSpeed = 200, color = "#E06D53" } = {}) {
     this.x = 0;
     this.y = 0;
     this.vx = 0;
