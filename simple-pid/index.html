@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>simple-pid</title>
+    <style>
+      body {
+        background-color: #18171f;
+        margin: 0;
+      }
+      canvas {
+        border: 1px solid #ffd54f;
+        margin: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas width="800" height="800" id="canvas"></canvas>
+    <script>
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+      const mouse = {
+        x: 0,
+        y: 0,
+        event: null,
+      };
+      const circle = {
+        x: 20,
+        y: canvas.height / 2,
+        radius: 10,
+        color: "#ffd54f",
+        vx: 0,
+      };
+      const target = {
+        x: canvas.width - 20,
+      };
+
+      let Kp = 0.03;
+      let Kd = 0.3;
+      let prevError = 0;
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const diff = target.x - circle.x;
+        const ax = diff * Kp + (diff - prevError) * Kd;
+        prevError = diff;
+        circle.vx += ax;
+
+        circle.x += circle.vx;
+
+        ctx.beginPath();
+        ctx.fillStyle = circle.color;
+        ctx.strokeStyle = circle.color;
+        ctx.arc(circle.x, circle.y, circle.radius, 0, Math.PI * 2, 0);
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.moveTo(target.x, 0);
+        ctx.lineTo(target.x, canvas.height);
+        ctx.stroke();
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.setLineDash([3, 4]);
+        ctx.moveTo(mouse.x, 0);
+        ctx.lineTo(mouse.x, canvas.height);
+        ctx.stroke();
+        ctx.restore();
+        ctx.restore();
+
+        requestAnimationFrame(draw);
+      }
+
+      draw();
+
+      canvas.addEventListener("mousemove", (event) => {
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = event.clientX - rect.left;
+        mouse.y = event.clientY - rect.top;
+        mouse.event = event;
+      });
+
+      canvas.addEventListener("mousedown", (event) => {
+        target.x = mouse.x;
+      });
+    </script>
+  </body>
+</html>
