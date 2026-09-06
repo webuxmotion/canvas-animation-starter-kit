@@ -2,7 +2,8 @@ import Ball from "./Ball.js";
 
 export default class Spring {
   constructor({ screen }) {
-    this.spring = 0.03;
+    this.spring = 0.08;
+    this.kd = 0.30;
     this.ball = new Ball({ color: "#2f9f63" });
     this.target = {
       x: screen.width / 2,
@@ -11,18 +12,19 @@ export default class Spring {
     this.ball.x = 0;
     this.ball.y = this.target.y;
     this.vx = 0;
-    this.friction = 0.95;
+    
+    this.lastDx = this.target.x - this.ball.x;
   }
 
   tick({ ctx, delta }) {
     const dx = this.target.x - this.ball.x;
-    const ax = dx * this.spring * (delta * 60);
+    
+    const dDx = (dx - this.lastDx) / (delta * 60);
+    this.lastDx = dx;
+
+    const ax = (dx * this.spring + dDx * this.kd) * (delta * 60);
 
     this.vx += ax;
-
-    const currentFriction = Math.pow(this.friction, delta * 60);
-    this.vx *= currentFriction;
-
     this.ball.x += this.vx * (delta * 60);
 
     if (Math.abs(this.vx) < 0.001 && Math.abs(dx) < 0.1) {
