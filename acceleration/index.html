@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <title>Document</title>
+    <title>Acceleration - a force that changes the velocity of an object.</title>
     <style>
       body {
         margin: 0;
@@ -10,29 +10,35 @@
       canvas {
         border: 1px solid #5b5353;
         margin: 20px;
+        display: block;
       }
     </style>
   </head>
   <body>
     <canvas width="800" height="800" id="canvas"></canvas>
+    <script src="../libs/dat.gui/dat.gui.min.js"></script>
     <script>
       // Acceleration - a force that changes the velocity of an object.
       const canvas = document.getElementById("canvas");
       const ctx = canvas.getContext("2d");
       let color = "#fff";
 
-      const windForce = -0.01;
+      const windForce = -0.03;
 
       const pidConfig = {
         Kp: 0.001,
         Kd: 0.08,
-        Ki: 0.00002 
+        Ki: 0.00002,
       };
 
+      let sim = null;
+
+      const START_BALL_X = 0;
+
       const ball = {
-        x: 0,
-        y: canvas.height / 2,
-        radius: 4,
+        x: START_BALL_X,
+        y: canvas.height / 2, 
+        radius: 10,
         vx: 0,
         ax: 0,
       };
@@ -42,13 +48,42 @@
         y: canvas.height / 2,
       };
 
-      let prevError = 0;
+      const graphY = 650; 
+
+      let prevError = target.x - ball.x;
       let errSum = 0;
+
+      const gui = new dat.GUI();
+      gui.add(pidConfig, "Kp", 0, 0.003, 0.0001).onChange(updatePrediction);
+      gui.add(pidConfig, "Ki", 0, 0.00004, 0.000001).onChange(updatePrediction);
+      gui.add(pidConfig, "Kd", 0, 0.16, 0.001).onChange(updatePrediction);
+
+      function updatePrediction() {
+        ball.x = START_BALL_X;
+        ball.vx = 0;
+        ball.ax = 0;
+
+        prevError = target.x - ball.x;
+        errSum = 0;
+
+        const virtualBall = {
+          x: START_BALL_X,
+          y: target.y,
+          radius: ball.radius,
+          vx: 0,
+          ax: 0
+        };
+        sim = calculatePid(target, virtualBall, pidConfig);
+      }
+
+      updatePrediction();
 
       function animate() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = color;
+        ctx.fillStyle = "#4caf50";
         ctx.strokeStyle = color;
+
+        drawPredictedPath(sim.frames);
 
         const posDiff = target.x - ball.x;
         errSum += posDiff;
@@ -61,7 +96,6 @@
 
         ball.ax = pGane + dGane + iGane;
 
-        // ball
         ball.vx += ball.ax + windForce;
         ball.x += ball.vx;
 
@@ -76,10 +110,97 @@
 
       function drawTargetLine() {
         ctx.save();
+        ctx.strokeStyle = color;
         ctx.beginPath();
         ctx.moveTo(target.x, 0);
         ctx.lineTo(target.x, canvas.height);
         ctx.stroke();
+        ctx.restore();
+      }
+
+      function drawPredictedPath(frames) {
+        ctx.save();
+        
+        ctx.strokeStyle = "#3e3838";
+        ctx.beginPath();
+        ctx.moveTo(0, graphY);
+        ctx.lineTo(canvas.width, graphY);
+        ctx.stroke();
+
+        ctx.strokeStyle = "#4caf50"; 
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        frames.forEach((frame, index) => {
+          const xPos = (index / frames.length) * canvas.width;
+
+          const deviation = (frame.ball.x - target.x) * 0.5; 
+          const yPos = graphY + deviation;
+
+          if (index === 0) {
+            ctx.moveTo(xPos, yPos);
+          } else {
+            ctx.lineTo(xPos, yPos);
+          }
+        });
+
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function calculatePid(target, ball, pidConfig) {
+        const newTarget = structuredClone(target);
+        const newBall = structuredClone(ball);
+
+        let prevError = newTarget.x - newBall.x;
+        let errSum = 0;
+        const steps = 500;
+        const frames = [];
+        const minMax = {
+          p: { min: 0, max: 0 },
+          d: { min: 0, max: 0 },
+          i: { min: 0, max: 0 },
+        };
+
+        for (let i = 0; i < steps; i++) {
+          const posDiff = newTarget.x - newBall.x;
+          errSum += posDiff;
+          errSum = Math.max(-5000, Math.min(5000, errSum));
+          const pGane = posDiff * pidConfig.Kp;
+          const diffPrev = posDiff - prevError;
+          prevError = posDiff;
+          const dGane = diffPrev * pidConfig.Kd;
+          const iGane = errSum * pidConfig.Ki;
+
+          newBall.ax = pGane + dGane + iGane;
+
+          newBall.vx += newBall.ax + windForce;
+          newBall.x += newBall.vx;
+
+          if (minMax.p.min > pGane) minMax.p.min = pGane;
+          if (minMax.p.max < pGane) minMax.p.max = pGane;
+
+          if (minMax.d.min > dGane) minMax.d.min = dGane;
+          if (minMax.d.max < dGane) minMax.d.max = dGane;
+
+          if (minMax.i.min > iGane) minMax.i.min = iGane;
+          if (minMax.i.max < iGane) minMax.i.max = iGane;
+
+          const frame = {
+            pGane,
+            dGane,
+            iGane,
+            ball: {
+              x: newBall.x,
+              vx: newBall.vx,
+              ax: newBall.ax,
+            },
+          };
+
+          frames.push(frame);
+        }
+
+        return { frames, minMax };
       }
 
       requestAnimationFrame(animate);
