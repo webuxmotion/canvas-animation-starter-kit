@@ -60,7 +60,6 @@
         const iGane = errSum * pidConfig.Ki;
 
         ball.ax = pGane + dGane + iGane;
-        console.log(pGane, dGane, iGane);
 
         // ball
         ball.vx += ball.ax + windForce;
