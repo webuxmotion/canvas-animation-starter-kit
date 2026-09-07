@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Document</title>
+    <style>
+      body {
+        margin: 0;
+        background-color: #201c1c;
+      }
+      canvas {
+        border: 1px solid #5b5353;
+        margin: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas width="800" height="800" id="canvas"></canvas>
+    <script>
+      // Acceleration - a force that changes the velocity of an object.
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+      let color = "#fff";
+
+      const windForce = -0.01;
+
+      const pidConfig = {
+        Kp: 0.001,
+        Kd: 0.08,
+        Ki: 0.00002 
+      };
+
+      const ball = {
+        x: 0,
+        y: canvas.height / 2,
+        radius: 4,
+        vx: 0,
+        ax: 0,
+      };
+
+      const target = {
+        x: canvas.width / 2,
+        y: canvas.height / 2,
+      };
+
+      let prevError = 0;
+      let errSum = 0;
+
+      function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = color;
+        ctx.strokeStyle = color;
+
+        const posDiff = target.x - ball.x;
+        errSum += posDiff;
+        errSum = Math.max(-5000, Math.min(5000, errSum));
+        const pGane = posDiff * pidConfig.Kp;
+        const diffPrev = posDiff - prevError;
+        prevError = posDiff;
+        const dGane = diffPrev * pidConfig.Kd;
+        const iGane = errSum * pidConfig.Ki;
+
+        ball.ax = pGane + dGane + iGane;
+        console.log(pGane, dGane, iGane);
+
+        // ball
+        ball.vx += ball.ax + windForce;
+        ball.x += ball.vx;
+
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2, 0);
+        ctx.fill();
+
+        drawTargetLine();
+
+        requestAnimationFrame(animate);
+      }
+
+      function drawTargetLine() {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(target.x, 0);
+        ctx.lineTo(target.x, canvas.height);
+        ctx.stroke();
+      }
+
+      requestAnimationFrame(animate);
+    </script>
+  </body>
+</html>
