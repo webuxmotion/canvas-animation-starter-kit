@@ -14,17 +14,18 @@
         margin: 20px;
       }
     </style>
+    <script src="../libs/dat.gui/dat.gui.min.js"></script>
   </head>
   <body>
     <canvas width="800" height="800" id="canvas"></canvas>
-    <script>
+    
+    <script type="module">
+      import { PidChart } from './PidChart.js';
+
       const canvas = document.getElementById("canvas");
       const ctx = canvas.getContext("2d");
-      const mouse = {
-        x: 0,
-        y: 0,
-        event: null,
-      };
+      const mouse = { x: 0, y: 0, event: null };
+      
       const circle = {
         x: 20,
         y: canvas.height / 2,
@@ -36,18 +37,54 @@
         x: canvas.width - 20,
       };
 
-      let Kp = 0.03;
-      let Kd = 0.3;
+      // Запам'ятовуємо позицію кульки в момент останнього кліку для точного прогнозу
+      let startXForPrediction = 20;
+
+      const pidConfig = {
+        Kp: 0.03,
+        Ki: 0.003,
+        Kd: 0.4,
+        wind: -0.5
+      };
+
+      let integral = 0;
       let prevError = 0;
+
+      const pidChart = new PidChart(ctx, 0, 0, canvas.width, canvas.height);
+
+      function updatePrediction() {
+        pidChart.predictTrajectory(
+          pidConfig.Kp, 
+          pidConfig.Ki, 
+          pidConfig.Kd, 
+          pidConfig.wind, 
+          startXForPrediction, // Тепер тут фіксована координата, а не динамічний circle.x
+          target.x
+        );
+      }
+
+      const gui = new dat.GUI();
+      gui.add(pidConfig, 'Kp', 0, 0.1, 0.001).onChange(updatePrediction);
+      gui.add(pidConfig, 'Ki', 0, 0.01, 0.0001).onChange(updatePrediction);
+      gui.add(pidConfig, 'Kd', 0, 1, 0.01).onChange(updatePrediction);
+      gui.add(pidConfig, 'wind', -2, 2, 0.1).onChange(updatePrediction);
+
+      updatePrediction();
 
       function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         const diff = target.x - circle.x;
-        const ax = diff * Kp + (diff - prevError) * Kd;
+        integral += diff; 
+        integral = Math.max(-200, Math.min(200, integral));
+        
+        const pTerm = diff * pidConfig.Kp;
+        const iTerm = integral * pidConfig.Ki;
+        const dTerm = (diff - prevError) * pidConfig.Kd;
+        
+        const ax = pTerm + iTerm + dTerm;
         prevError = diff;
-        circle.vx += ax;
-
+        circle.vx += ax + pidConfig.wind;
         circle.x += circle.vx;
 
         ctx.beginPath();
@@ -57,18 +94,22 @@
         ctx.fill();
 
         ctx.beginPath();
+        ctx.strokeStyle = circle.color;
         ctx.moveTo(target.x, 0);
         ctx.lineTo(target.x, canvas.height);
         ctx.stroke();
 
         ctx.save();
         ctx.beginPath();
-        ctx.setLineDash([3, 4]);
+        ctx.setLineDash([4, 6]);
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = '#ffd54f';
         ctx.moveTo(mouse.x, 0);
         ctx.lineTo(mouse.x, canvas.height);
         ctx.stroke();
         ctx.restore();
-        ctx.restore();
+
+        pidChart.draw();
 
         requestAnimationFrame(draw);
       }
@@ -83,7 +124,10 @@
       });
 
       canvas.addEventListener("mousedown", (event) => {
+        // У момент кліку фіксуємо, де зараз перебував м'ячик, щоб побудувати прогноз від цієї точки до нової цілі
+        startXForPrediction = circle.x; 
         target.x = mouse.x;
+        updatePrediction();
       });
     </script>
   </body>
