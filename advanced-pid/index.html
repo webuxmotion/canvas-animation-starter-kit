@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Advanced Industrial PID Simulation</title>
+    <style>
+      body {
+        background-color: #18171f;
+        margin: 0;
+        font-family: sans-serif;
+        color: #fff;
+      }
+      canvas {
+        border: 1px solid #ffd54f;
+        margin: 20px;
+        display: block;
+      }
+      .info {
+        margin-left: 20px;
+        font-size: 14px;
+        color: #aaa;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas width="800" height="400" id="canvas"></canvas>
+    <div class="info">
+      <p>💡 <strong>Клікніть мишкою</strong>, щоб змінити ціль (Set Point). Спробуйте клікнути біля самого краю!</p>
+      <p>🌪️ У симуляцію вбудовано постійний "вітер" (зовнішнє збурення). Інтегратор (I) успішно його компенсує.</p>
+    </div>
+
+    <script>
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+      const mouse = { x: 0, y: 0 };
+      
+      const circle = {
+        x: 20,
+        y: canvas.height / 2,
+        radius: 12,
+        color: "#ffd54f",
+        vx: 0,
+        yold: 20 // Для зворотного розрахунку похідної (диференціатора)
+      };
+      
+      const target = { x: canvas.width / 2 };
+
+      // --- ПАРАМЕТРИ PID (Згідно з підручником) ---
+      let K = 0.04;      // Пропорційне підсилення
+      let Ti = 40;       // Час інтегрування (чим менше, тим сильніший I)
+      let Td = 12;       // Час диференціювання
+      let N = 10;        // Коефіцієнт фільтрації шуму диференціатора (зазвичай 8-20)
+      let Tt = 15;       // Час стеження Anti-Windup (Tracking time)
+      let h = 1;         // Крок дискретизації (крок таймера)
+
+      // Попередній розрахунок цифрових коефіцієнтів для економії часу в циклі (Розділ 6.7)
+      const bi = (K * h) / Ti;
+      const ad = (2 * Td - N * h) / (2 * Td + N * h);
+      const bd = (2 * K * N * Td) / (2 * Td + N * h);
+      const ao = h / Tt;
+
+      // Змінні стану регулятора (States)
+      let I = 0;
+      let D = 0;
+
+      // Фізичні обмеження (Насичення актуатора / Стіни)
+      const maxForce = 2.5; // Максимальна сила "двигуна" кульки (Saturating limit)
+      const windForce = -0.5; // Постійне зовнішнє збурення (вітер вліво)
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Поточна помилка (Error)
+        const error = target.x - circle.x;
+
+        // 1. Пропорційна частина (P)
+        const P = K * error;
+
+        // 2. Диференціальна частина (D) зі зворотною різницею та фільтром шуму (Рівняння 6.17)
+        // Замість (diff - prevError) беремо зміну виходу системи (y - yold), щоб уникнути стрибків при зміні цілі (c=0)
+        D = ad * D - bd * (circle.x - circle.yold);
+
+        // 3. Тимчасовий (бажаний) сигнал керування до обмеження
+        const v = P + I + D;
+
+        // 4. Імітація обмеження реального актуатора (Сила двигуна обмежена)
+        let u = v;
+        if (u > maxForce) u = maxForce;
+        if (u < -maxForce) u = -maxForce;
+
+        // 5. Оновлення інтегратора з захистом від Windup через Back-Calculation (Код з Розділу 6.7)
+        // Доданок ao * (u - v) миттєво "зливає" надлишок інтегратора, якщо актуатор впав у насичення!
+        I = I + bi * error + ao * (u - v);
+
+        // Зберігаємо поточний стан для наступного кроку
+        circle.yold = circle.x;
+
+        // --- ФІЗИКА КУЛЬКИ ---
+        // Прискорення = Сила двигуна (u) + Сила вітру (windForce)
+        const ax = u + windForce;
+        circle.vx += ax;
+        circle.x += circle.vx;
+
+        // Обмеження canvas (Фізичні стіни)
+        if (circle.x < circle.radius) {
+          circle.x = circle.radius;
+          circle.vx = 0;
+        }
+        if (circle.x > canvas.width - circle.radius) {
+          circle.x = canvas.width - circle.radius;
+          circle.vx = 0;
+        }
+
+        // --- ВІЗУАЛІЗАЦІЯ ---
+        // Ціль (Set Point)
+        ctx.beginPath();
+        ctx.strokeStyle = "#ff5252";
+        ctx.lineWidth = 2;
+        ctx.moveTo(target.x, 0);
+        ctx.lineTo(target.x, canvas.height);
+        ctx.stroke();
+
+        // Кулька (Process Variable)
+        ctx.beginPath();
+        ctx.fillStyle = circle.color;
+        ctx.arc(circle.x, circle.y, circle.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Лінія мишки
+        ctx.save();
+        ctx.beginPath();
+        ctx.strokeStyle = "#444";
+        ctx.setLineDash([4, 4]);
+        ctx.moveTo(mouse.x, 0);
+        ctx.lineTo(mouse.x, canvas.height);
+        ctx.stroke();
+        ctx.restore();
+
+        // Виведення телеметрії на екран для відладки
+        ctx.fillStyle = "#aaa";
+        ctx.font = "12px monospace";
+        ctx.fillText(`Позиція (Y): ${circle.x.toFixed(1)}`, 20, 30);
+        ctx.fillText(`Ціль (SP): ${target.x.toFixed(1)}`, 20, 50);
+        ctx.fillText(`Помилка (E): ${error.toFixed(1)}`, 20, 70);
+        ctx.fillText(`Вихід PID (V): ${v.toFixed(2)}`, 20, 90);
+        ctx.fillText(`Обмежена Сила (U): ${u.toFixed(2)}`, 20, 110);
+        ctx.fillText(`Інтегратор (I): ${I.toFixed(2)} (Захищено Anti-Windup)`, 20, 130);
+
+        requestAnimationFrame(draw);
+      }
+
+      draw();
+
+      canvas.addEventListener("mousemove", (event) => {
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = event.clientX - rect.left;
+        mouse.y = event.clientY - rect.top;
+      });
+
+      canvas.addEventListener("mousedown", () => {
+        target.x = mouse.x;
+      });
+    </script>
+  </body>
+</html>
