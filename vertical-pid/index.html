@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>1. Textbook PID (Vertical)</title>
+    <style>
+      body {
+        background-color: #18171f;
+        color: #fff;
+        font-family: sans-serif;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding-top: 20px;
+      }
+      canvas {
+        border: 2px solid #ff5252;
+        background-color: #111;
+        cursor: pointer;
+      }
+      .info {
+        margin-top: 15px;
+        color: #ff8a80;
+        font-size: 14px;
+        text-align: center;
+        max-width: 500px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>1. Класичний Textbook PID (Утримання висоти)</h1>
+    <canvas width="500" height="700" id="canvas"></canvas>
+    <div class="info">
+      <p>🎯 <strong>Клікніть мишкою всередині рамки</strong>, щоб встановити висоту (червона лінія).</p>
+      <p>⚠️ <em>Ефект Windup у всій красі:</em> Клікніть спочатку в самий верх екрана, зачекайте 5 секунд, а потім клікніть у самий низ. Ви побачите, як кулька довго "залипне" у стелі через те, що накопичений інтеграл буде дуже довго зменшуватися!</p>
+    </div>
+
+    <script>
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+
+      const ball = {
+        x: canvas.width / 2,
+        y: canvas.height - 30, // Старт з підлоги
+        radius: 15,
+        color: "#ff5252",
+        vy: 0
+      };
+
+      const target = { y: canvas.height / 2 };
+      const gravity = 0.15; // Трохи зменшили гравітацію для м'якшої фізики
+
+      // --- ТОЧНО НАЛАШТОВАНІ КОЕФІЦІЄНТИ КЛАСИЧНОГО PID ---
+      // Попередні коефіцієнти були занадто агресивними й викликали автоколивання.
+      // Ми зменшили Kp і Ki, та збалансували Kd, щоб загасити скажені стрибки.
+      let Kp = 0.015;   
+      let Ki = 0.0001; 
+      let Kd = 0.25;    
+
+      let prevError = 0;
+      let integral = 0;
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // --- КЛАСИЧНИЙ PID АЛГОРИТМ ---
+        // Помилка: відстань від кульки до цілі по вертикалі
+        const error = ball.y - target.y; 
+
+        // Інтеграл накопичується без меж (як у підручнику)
+        integral += error;
+
+        // Диференціатор (чиста пряма різниця помилок)
+        const derivative = error - prevError;
+        prevError = error;
+
+        // Сигнал керування u (Тяга вгору)
+        const u = (error * Kp) + (integral * Ki) + (derivative * Kd);
+
+        // Фізика руху: u діє вгору (мінус Y), гравітація вниз (плюс Y)
+        const ay = -u + gravity;
+        ball.vy += ay;
+        ball.y += ball.vy;
+
+        // Фізичні стіни (Насичення позиції на екрані)
+        if (ball.y > canvas.height - ball.radius) {
+          ball.y = canvas.height - ball.radius;
+          ball.vy = 0;
+        }
+        if (ball.y < ball.radius) {
+          ball.y = ball.radius;
+          ball.vy = 0;
+        }
+
+        // --- ВІЗУАЛІЗАЦІЯ ---
+        // Червона лінія цілі
+        ctx.beginPath();
+        ctx.strokeStyle = "#ff5252";
+        ctx.lineWidth = 2;
+        ctx.moveTo(0, target.y);
+        ctx.lineTo(canvas.width, target.y);
+        ctx.stroke();
+
+        // Червона кулька
+        ctx.beginPath();
+        ctx.fillStyle = ball.color;
+        ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Телеметрія (показує координати та стан регулятора)
+        ctx.fillStyle = "#ff8a80";
+        ctx.font = "14px monospace";
+        ctx.fillText(`Цільова координата Y: ${target.y.toFixed(1)}`, 20, 40);
+        ctx.fillText(`Поточна координата Y: ${ball.y.toFixed(1)}`, 20, 65);
+        ctx.fillText(`Помилка (E): ${error.toFixed(1)}`, 20, 90);
+        ctx.fillText(`Інтеграл (I): ${integral.toFixed(1)}`, 20, 115);
+        ctx.fillText(`Потужність двигуна (U): ${u.toFixed(2)}`, 20, 140);
+
+        requestAnimationFrame(draw);
+      }
+
+      draw();
+
+      // Зміна цілі кліком
+      canvas.addEventListener("mousedown", (event) => {
+        const rect = canvas.getBoundingClientRect();
+        target.y = event.clientY - rect.top;
+      });
+    </script>
+  </body>
+</html>
