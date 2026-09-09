@@ -12,7 +12,83 @@
   </head>
   <body>
     <canvas id="canvas" width="500" height="500"></canvas>
+    <script src="../libs/dat.gui/dat.gui.min.js"></script>
 
-    <script></script>
+    <script>
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+
+      const start = {
+        x: 20,
+        y: 20,
+      };
+
+      const vector = {
+        x: 300,
+        y: 400,
+      };
+
+      const gui = new dat.GUI();
+
+      const startPoint = gui.addFolder("Start Point");
+      startPoint.add(start, "x", 0, 500).name("start.x").onChange(draw);
+      startPoint.add(start, "y", 0, 500).name("start.y").onChange(draw);
+      startPoint.open();
+
+      const vectorFolder = gui.addFolder("Vector");
+      vectorFolder.add(vector, "x", -500, 500).name("vector.x").onChange(draw);
+      vectorFolder.add(vector, "y", -500, 500).name("vector.y").onChange(draw);
+      vectorFolder.open();
+
+      draw();
+
+      function draw() {
+        const end = {
+          x: start.x + vector.x,
+          y: start.y + vector.y,
+        };
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.beginPath();
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(end.x, end.y);
+        ctx.stroke();
+
+        const angle = Math.atan2(vector.y, vector.x);
+
+        ctx.beginPath();
+        ctx.moveTo(end.x, end.y);
+        ctx.lineTo(
+          end.x - Math.cos(angle - Math.PI / 6) * 10,
+          end.y - Math.sin(angle - Math.PI / 6) * 10,
+        );
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(end.x, end.y);
+        ctx.lineTo(
+          end.x - Math.cos(angle + Math.PI / 6) * 10,
+          end.y - Math.sin(angle + Math.PI / 6) * 10,
+        );
+        ctx.stroke();
+
+        const length = Math.sqrt(vector.x ** 2 + vector.y ** 2);
+
+        ctx.font = "24px sans-serif";
+        ctx.fillText(`Length: ${length.toFixed(2)}`, 10, canvas.height / 2);
+
+        const vectorNormalized = {
+          x: (vector.x / length),
+          y: (vector.y / length),
+        };
+
+        ctx.beginPath();
+        ctx.moveTo(start.x, start.y + 40);
+        ctx.lineTo(
+          start.x + vectorNormalized.x * 20,
+          start.y + 40 + vectorNormalized.y * 20,
+        );
+        ctx.stroke();
+      }
+    </script>
   </body>
 </html>
