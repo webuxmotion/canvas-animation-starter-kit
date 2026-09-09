@@ -29,11 +29,30 @@
 
       let angle = 0;
 
+      // Параметри лінійного руху
+      let progress = 0; // Чистий прогрес від 0 до 1
+      let direction = 1; // 1 — вперед до x2, -1 — назад до x1
+      const speed = 0.005; // Фіксована швидкість руху точки
+
       function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         drawCircle();
-        drawChord(circle.radius / 2, angle);
+
+        // Лінійно змінюємо прогрес (крок однаковий на кожному кадрі)
+        progress += speed * direction;
+
+        // Реверс руху при досягненні країв
+        if (progress >= 1) {
+          progress = 1;
+          direction = -1;
+        } else if (progress <= 0) {
+          progress = 0;
+          direction = 1;
+        }
+
+        // Передаємо чистий лінійний прогрес
+        drawChord(circle.radius / 2, angle, progress);
 
         angle += 0.001;
 
@@ -42,24 +61,17 @@
 
       function drawCircle() {
         const angleStep = (Math.PI * 2) / circle.sides;
-
         ctx.beginPath();
-
         for (let i = 0; i <= circle.sides; i++) {
           const x = Math.cos(i * angleStep) * circle.radius + circle.x;
           const y = Math.sin(i * angleStep) * circle.radius + circle.y;
-
-          if (i == 0) {
-            ctx.moveTo(x, y);
-          } else {
-            ctx.lineTo(x, y);
-          }
+          if (i == 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
         }
-
         ctx.stroke();
       }
 
-      function drawChord(height, angle = 0) {
+      function drawChord(height, angle = 0, t = 0) {
         const baseAngle1 = Math.asin(height / circle.radius);
         const baseAngle2 = Math.PI - baseAngle1;
 
@@ -76,34 +88,30 @@
         ctx.moveTo(x1, y1);
         ctx.lineTo(x2, y2);
         ctx.stroke();
-
         ctx.beginPath();
         ctx.arc(x1, y1, 4, 0, Math.PI * 2);
         ctx.fill();
-
         ctx.beginPath();
         ctx.arc(x2, y2, 4, 0, Math.PI * 2);
         ctx.fill();
 
-        // --- ВАШ МЕТОД З КУТАМИ ТА ГІПОТЕНУЗОЮ (ОСТАТОЧНО ВИПРАВЛЕНИЙ) ---
+        // --- ВАШ МЕТОД З ЛІНІЙНИМ ПАРАМЕТРОМ xLen ---
         const chordLen = Math.hypot(x1 - x2, y1 - y2);
-        const xLen = chordLen / 2 - 3; // Відступ 5 пікселів від точки 1
+        const halfChord = chordLen / 2;
 
-        // Знаходимо локальний кут трикутника відносно центральної лінії хорди
+        // Точка йде строго рівномірно від (halfChord - 3) до (-halfChord + 3)
+        const startX = halfChord - 3;
+        const endX = -halfChord + 3;
+        const xLen = startX + (endX - startX) * t;
+
+        // Ваша математика
         const localAngle = Math.atan2(xLen, height);
-        // Гіпотенуза від центра кола до нашої третьої точки
         const pointHypot = Math.hypot(height, xLen);
-
-        // ПРАВИЛЬНИЙ КУТ:
-        // angle + Math.PI / 2 — це кут перпендикуляра, який ділить хорду навпіл.
-        // Ми додаємо localAngle, щоб змістити вектор вздовж хорди саме до першої точки.
         const finalAngle3 = angle + Math.PI / 2 + localAngle;
 
-        // Координати третьої точки
         const x3 = circle.x + Math.cos(finalAngle3) * pointHypot;
         const y3 = circle.y + Math.sin(finalAngle3) * pointHypot;
 
-        // Малюємо третю точку
         ctx.beginPath();
         ctx.arc(x3, y3, 4, 0, Math.PI * 2);
         ctx.fillStyle = "red";
