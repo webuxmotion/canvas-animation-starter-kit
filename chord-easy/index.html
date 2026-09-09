@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>01-easing-1.html</title>
+    <style>
+      body {
+        margin: 0;
+      }
+      canvas {
+        border: 1px solid;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas" width="500" height="500"></canvas>
+
+    <script type="module">
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+
+      const circle = {
+        x: canvas.width / 2,
+        y: canvas.height / 2,
+        radius: 100,
+        sides: 100,
+      };
+
+      let progress = 0;
+      let totalLength = 0;
+      let angle = Math.PI;
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        drawCircle();
+        drawLines();
+
+        progress += 4;
+        angle += 0.002;
+        if (progress > totalLength) progress = 0;
+
+        requestAnimationFrame(draw);
+      }
+
+      function drawLines() {
+        const lineSize = 20;
+        const linesCount = Math.ceil((circle.radius * 2) / lineSize);
+
+        ctx.save();
+        ctx.translate(circle.x, circle.y);
+        ctx.rotate(angle);
+        const startPoint = {
+          x: -circle.radius,
+          y: -(linesCount * lineSize) / 2,
+        };
+
+        totalLength = linesCount * circle.radius * 2;
+
+        ctx.clip();
+
+        const totalColor = 50 - 20;
+        const colorStep = totalColor / linesCount;
+
+        for (let i = 0; i < linesCount; i++) {
+          const leftBound = circle.radius * 2 * i;
+          const rightBound = leftBound + circle.radius * 2;
+          let width = 0;
+
+          if (progress > leftBound && progress < rightBound) {
+            width = progress - leftBound;
+          } else if (progress >= rightBound) {
+            width = circle.radius * 2;
+          }
+          ctx.save();
+          const color = `hsla(80, 80%, ${20 + colorStep * i}%)`;
+
+          ctx.fillStyle = color;
+
+          ctx.fillRect(
+            startPoint.x,
+            startPoint.y + i * lineSize,
+            width,
+            lineSize + 1,
+          );
+
+          ctx.restore();
+        }
+
+        ctx.restore();
+      }
+
+      function drawCircle() {
+        const angleStep = (Math.PI * 2) / circle.sides;
+        ctx.beginPath();
+        for (let i = 0; i <= circle.sides; i++) {
+          const x = Math.cos(i * angleStep) * circle.radius + circle.x;
+          const y = Math.sin(i * angleStep) * circle.radius + circle.y;
+          if (i == 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = "black";
+        //ctx.stroke();
+      }
+
+      requestAnimationFrame(draw);
+    </script>
+  </body>
+</html>
