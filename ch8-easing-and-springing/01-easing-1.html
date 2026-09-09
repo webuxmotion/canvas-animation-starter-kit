@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>01-easing-1.html</title>
+    <style>
+      body {
+        margin: 0;
+      }
+      canvas {
+        border: 1px solid;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas" width="500" height="500"></canvas>
+
+    <script type="module">
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+
+      const mouse = {
+        x: 0,
+        y: 0,
+        event: null,
+        isDown: false,
+      };
+
+      const circle = {
+        x: 0,
+        y: 0,
+        radius: 40,
+        vx: 0,
+        vy: 0,
+        dragOffset: {
+          x: 0,
+          y: 0,
+        },
+        isDragging: false,
+      };
+
+      const target = {
+        x: canvas.width / 2,
+        y: canvas.height / 2,
+      };
+
+      const easing = 0.04;
+
+      canvas.addEventListener("mousemove", (event) => {
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = event.clientX - rect.left;
+        mouse.y = event.clientY - rect.top;
+        mouse.event = event;
+
+        if (mouse.isDown) {
+          if (circle.isDragging) {
+            circle.x = mouse.x + circle.dragOffset.x;
+            circle.y = mouse.y + circle.dragOffset.y;
+          } else {
+            const dx = circle.x - mouse.x;
+            const dy = circle.y - mouse.y;
+            const dist = Math.hypot(dx, dy);
+
+            if (dist < circle.radius) {
+              circle.dragOffset.x = dx;
+              circle.dragOffset.y = dy;
+              circle.isDragging = true;
+            }
+          }
+        }
+      });
+
+      canvas.addEventListener("mousedown", (event) => {
+        mouse.isDown = true;
+      });
+
+      canvas.addEventListener("mouseup", (event) => {
+        mouse.isDown = false;
+        circle.isDragging = false;
+      });
+
+      canvas.addEventListener("touchstart", (e) => {
+        e.preventDefault(); // Запобігає емуляції миші браузером
+        console.log("sdfsdf");
+      });
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        ctx.font = "400 48px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("WEBUXMOTION", canvas.width / 2, 50);
+
+        ctx.beginPath();
+        ctx.arc(circle.x, circle.y, circle.radius, 0, Math.PI * 2, 0);
+        ctx.fill();
+
+        if (!circle.isDragging) {
+          const dx = target.x - circle.x;
+          const dy = target.y - circle.y;
+
+          circle.vx = dx * easing;
+          circle.vy = dy * easing;
+
+          circle.x += circle.vx;
+          circle.y += circle.vy;
+        }
+
+        requestAnimationFrame(draw);
+      }
+
+      requestAnimationFrame(draw);
+    </script>
+  </body>
+</html>

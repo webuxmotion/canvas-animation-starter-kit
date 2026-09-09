@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>01-easing-1.html</title>
+    <style>
+      body {
+        margin: 0;
+      }
+      canvas {
+        border: 1px solid;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas" width="500" height="500"></canvas>
+
+    <script type="module">
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+
+      const circle = {
+        x: canvas.width / 2,
+        y: canvas.height / 2,
+        radius: 100,
+        sides: 30,
+      };
+
+      let angle = 0;
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        drawCircle();
+        drawChord(circle.radius / 2, angle);
+
+        angle += 0.001;
+
+        requestAnimationFrame(draw);
+      }
+
+      function drawCircle() {
+        const angleStep = (Math.PI * 2) / circle.sides;
+
+        ctx.beginPath();
+
+        for (let i = 0; i <= circle.sides; i++) {
+          const x = Math.cos(i * angleStep) * circle.radius + circle.x;
+          const y = Math.sin(i * angleStep) * circle.radius + circle.y;
+
+          if (i == 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+
+        ctx.stroke();
+      }
+
+      function drawChord(height, angle = 0) {
+        const baseAngle1 = Math.asin(height / circle.radius);
+        const baseAngle2 = Math.PI - baseAngle1;
+
+        const finalAngle1 = baseAngle1 + angle;
+        const finalAngle2 = baseAngle2 + angle;
+
+        const x1 = circle.x + Math.cos(finalAngle1) * circle.radius;
+        const y1 = circle.y + Math.sin(finalAngle1) * circle.radius;
+
+        const x2 = circle.x + Math.cos(finalAngle2) * circle.radius;
+        const y2 = circle.y + Math.sin(finalAngle2) * circle.radius;
+
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(x1, y1, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(x2, y2, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // --- ВАШ МЕТОД З КУТАМИ ТА ГІПОТЕНУЗОЮ (ОСТАТОЧНО ВИПРАВЛЕНИЙ) ---
+        const chordLen = Math.hypot(x1 - x2, y1 - y2);
+        const xLen = chordLen / 2 - 3; // Відступ 5 пікселів від точки 1
+
+        // Знаходимо локальний кут трикутника відносно центральної лінії хорди
+        const localAngle = Math.atan2(xLen, height);
+        // Гіпотенуза від центра кола до нашої третьої точки
+        const pointHypot = Math.hypot(height, xLen);
+
+        // ПРАВИЛЬНИЙ КУТ:
+        // angle + Math.PI / 2 — це кут перпендикуляра, який ділить хорду навпіл.
+        // Ми додаємо localAngle, щоб змістити вектор вздовж хорди саме до першої точки.
+        const finalAngle3 = angle + Math.PI / 2 + localAngle;
+
+        // Координати третьої точки
+        const x3 = circle.x + Math.cos(finalAngle3) * pointHypot;
+        const y3 = circle.y + Math.sin(finalAngle3) * pointHypot;
+
+        // Малюємо третю точку
+        ctx.beginPath();
+        ctx.arc(x3, y3, 4, 0, Math.PI * 2);
+        ctx.fillStyle = "red";
+        ctx.fill();
+        ctx.fillStyle = "black";
+      }
+
+      requestAnimationFrame(draw);
+    </script>
+  </body>
+</html>
