@@ -18,7 +18,7 @@
       const canvas = document.getElementById("canvas");
       const ctx = canvas.getContext("2d");
 
-      const startA = {
+      const start = {
         x: 50,
         y: 100,
       };
@@ -28,21 +28,34 @@
         y: 80,
       };
 
-      const startB = {
-        x: 300,
-        y: 300,
+      const vectorB = {
+        x: 100,
+        y: 200,
       };
 
-      const vectorB = {
-        x: -80,
-        y: -120,
+      // multiplication
+      const startM = {
+        x: 200,
+        y: 200,
       };
+
+      const vectorM = {
+        x: 50,
+        y: 50,
+      };
+
+      window.multiplicator = 2;
 
       const gui = new dat.GUI();
 
+      gui.add(window, "multiplicator", -2, 2, 1).onChange(draw);
+
+      const startFolder = gui.addFolder("start");
+      startFolder.add(start, "x", 0, 500).name("start.x").onChange(draw);
+      startFolder.add(start, "y", 0, 500).name("start.y").onChange(draw);
+      startFolder.open();
+
       const vectorAfolder = gui.addFolder("Vector A");
-      vectorAfolder.add(startA, "x", 0, 500).name("startA.x").onChange(draw);
-      vectorAfolder.add(startA, "y", 0, 500).name("startA.y").onChange(draw);
       vectorAfolder
         .add(vectorA, "x", -500, 500)
         .name("vectorA.x")
@@ -54,8 +67,6 @@
       vectorAfolder.open();
 
       const vectorBfolder = gui.addFolder("Vector B");
-      vectorBfolder.add(startB, "x", 0, 500).name("startB.x").onChange(draw);
-      vectorBfolder.add(startB, "y", 0, 500).name("startB.y").onChange(draw);
       vectorBfolder
         .add(vectorB, "x", -500, 500)
         .name("vectorB.x")
@@ -71,15 +82,64 @@
       function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+        const vectorMScaled = {
+          x: vectorM.x * multiplicator,
+          y: vectorM.y * multiplicator,
+        };
+
+        const length = Math.sqrt(vectorM.x ** 2 + vectorM.y ** 2);
+
+        const direction = {
+          x: vectorM.x / length,
+          y: vectorM.y / length,
+        };
+
+        const endA = {
+          x: start.x + vectorA.x,
+          y: start.y + vectorA.y,
+        };
+
+        const endB = {
+          x: start.x + vectorB.x,
+          y: start.y + vectorB.y,
+        };
+
         ctx.beginPath();
-        ctx.moveTo(startA.x, startA.y);
-        ctx.lineTo(startA.x + vectorA.x, startA.y + vectorA.y);
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(endA.x, endA.y);
         ctx.stroke();
 
         ctx.beginPath();
-        ctx.moveTo(startB.x, startB.y);
-        ctx.lineTo(startB.x + vectorB.x, startB.y + vectorB.y);
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(endB.x, endB.y);
         ctx.stroke();
+
+        ctx.save();
+        ctx.strokeStyle = "red";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(endA.x, endA.y);
+        ctx.lineTo(endB.x, endB.y);
+        ctx.stroke();
+        ctx.restore();
+
+        // ctx.save();
+        // ctx.strokeStyle = "green";
+        // ctx.lineWidth = 4;
+        // ctx.beginPath();
+        // ctx.moveTo(startM.x, startM.y);
+        // ctx.lineTo(startM.x + vectorMScaled.x, startM.y + vectorMScaled.y);
+        // ctx.stroke();
+        // ctx.restore();
+
+        ctx.save();
+        ctx.strokeStyle = "green";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(startM.x, startM.y);
+        ctx.lineTo(startM.x + direction.x * 10, startM.y + direction.y * 10);
+        ctx.stroke();
+        ctx.restore();
       }
     </script>
   </body>

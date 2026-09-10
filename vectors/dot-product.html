@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>dot product - Vectors</title>
+    <style>
+      canvas {
+        border: 1px solid;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas" width="500" height="500"></canvas>
+    <script src="../libs/dat.gui/dat.gui.min.js"></script>
+
+    <script>
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+
+      const start = {
+        x: 250,
+        y: 250,
+      };
+
+      const vectorA = {
+        x: 100,
+        y: 50,
+      };
+
+      const vectorB = {
+        x: -50,
+        y: 100,
+      };
+
+      draw();
+
+      const gui = new dat.GUI();
+
+      gui.add(vectorA, "x", -500, 500).onChange(draw);
+      gui.add(vectorA, "y", -500, 500).onChange(draw);
+
+      gui.add(vectorB, "x", -500, 500).onChange(draw);
+      gui.add(vectorB, "y", -500, 500).onChange(draw);
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 1. Стандартний скалярний добуток
+        const dot = vectorA.x * vectorB.x + vectorA.y * vectorB.y;
+
+        // 2. Рахуємо довжини векторів (магнітуду)
+        const magA = Math.sqrt(vectorA.x ** 2 + vectorA.y ** 2);
+        const magB = Math.sqrt(vectorB.x ** 2 + vectorB.y ** 2);
+
+        const normA = { x: 0, y: 0 };
+        if (magA > 0) {
+          normA.x = vectorA.x / magA;
+          normA.y = vectorA.y / magA;
+        }
+
+        console.log(normA);
+
+        // 3. Косинус кута (dot product нормованих векторів)
+        // За формулою: cos(θ) = (A · B) / (|A| * |B|)
+        let cosTheta = 0;
+        if (magA > 0 && magB > 0) {
+          cosTheta = dot / (magA * magB);
+        }
+        const radians = Math.acos(cosTheta);
+
+        // Малюємо вектор А (Червоний)
+        ctx.save();
+        ctx.strokeStyle = "red";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(start.x + vectorA.x, start.y + vectorA.y);
+        ctx.stroke();
+        ctx.restore();
+
+        // Малюємо вектор B (Зелений)
+        ctx.save();
+        ctx.strokeStyle = "green";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(start.x + vectorB.x, start.y + vectorB.y);
+        ctx.stroke();
+        ctx.restore();
+
+        // Виводимо інформацію на Canvas
+        ctx.save();
+        ctx.font = "16px sans-serif";
+        ctx.fillStyle = "black";
+        ctx.fillText(`Dot Product: ${dot.toFixed(2)}`, 20, 30);
+        ctx.fillText(`Cos(θ): ${cosTheta.toFixed(2)}`, 20, 50);
+
+        // Визначаємо взаємний напрямок
+        let relation = "Гострий кут (дивляться в один бік)";
+        if (Math.abs(cosTheta) < 0.01) relation = "Перпендикулярні (90°)";
+        else if (cosTheta < 0) relation = "Тупий кут (дивляться в різні боки)";
+
+        ctx.fillText(`Зв'язок: ${relation}`, 20, 70);
+        ctx.restore();
+      }
+    </script>
+  </body>
+</html>
