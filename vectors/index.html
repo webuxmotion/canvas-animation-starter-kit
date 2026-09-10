@@ -18,75 +18,67 @@
       const canvas = document.getElementById("canvas");
       const ctx = canvas.getContext("2d");
 
-      const start = {
-        x: 20,
-        y: 20,
+      const startA = {
+        x: 50,
+        y: 100,
       };
 
-      const vector = {
+      const vectorA = {
+        x: 150,
+        y: 80,
+      };
+
+      const startB = {
         x: 300,
-        y: 400,
+        y: 300,
+      };
+
+      const vectorB = {
+        x: -80,
+        y: -120,
       };
 
       const gui = new dat.GUI();
 
-      const startPoint = gui.addFolder("Start Point");
-      startPoint.add(start, "x", 0, 500).name("start.x").onChange(draw);
-      startPoint.add(start, "y", 0, 500).name("start.y").onChange(draw);
-      startPoint.open();
+      const vectorAfolder = gui.addFolder("Vector A");
+      vectorAfolder.add(startA, "x", 0, 500).name("startA.x").onChange(draw);
+      vectorAfolder.add(startA, "y", 0, 500).name("startA.y").onChange(draw);
+      vectorAfolder
+        .add(vectorA, "x", -500, 500)
+        .name("vectorA.x")
+        .onChange(draw);
+      vectorAfolder
+        .add(vectorA, "y", -500, 500)
+        .name("vectorA.y")
+        .onChange(draw);
+      vectorAfolder.open();
 
-      const vectorFolder = gui.addFolder("Vector");
-      vectorFolder.add(vector, "x", -500, 500).name("vector.x").onChange(draw);
-      vectorFolder.add(vector, "y", -500, 500).name("vector.y").onChange(draw);
-      vectorFolder.open();
+      const vectorBfolder = gui.addFolder("Vector B");
+      vectorBfolder.add(startB, "x", 0, 500).name("startB.x").onChange(draw);
+      vectorBfolder.add(startB, "y", 0, 500).name("startB.y").onChange(draw);
+      vectorBfolder
+        .add(vectorB, "x", -500, 500)
+        .name("vectorB.x")
+        .onChange(draw);
+      vectorBfolder
+        .add(vectorB, "y", -500, 500)
+        .name("vectorB.y")
+        .onChange(draw);
+      vectorBfolder.open();
 
       draw();
 
       function draw() {
-        const end = {
-          x: start.x + vector.x,
-          y: start.y + vector.y,
-        };
-
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+
         ctx.beginPath();
-        ctx.moveTo(start.x, start.y);
-        ctx.lineTo(end.x, end.y);
+        ctx.moveTo(startA.x, startA.y);
+        ctx.lineTo(startA.x + vectorA.x, startA.y + vectorA.y);
         ctx.stroke();
 
-        const angle = Math.atan2(vector.y, vector.x);
-
         ctx.beginPath();
-        ctx.moveTo(end.x, end.y);
-        ctx.lineTo(
-          end.x - Math.cos(angle - Math.PI / 6) * 10,
-          end.y - Math.sin(angle - Math.PI / 6) * 10,
-        );
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(end.x, end.y);
-        ctx.lineTo(
-          end.x - Math.cos(angle + Math.PI / 6) * 10,
-          end.y - Math.sin(angle + Math.PI / 6) * 10,
-        );
-        ctx.stroke();
-
-        const length = Math.sqrt(vector.x ** 2 + vector.y ** 2);
-
-        ctx.font = "24px sans-serif";
-        ctx.fillText(`Length: ${length.toFixed(2)}`, 10, canvas.height / 2);
-
-        const vectorNormalized = {
-          x: (vector.x / length),
-          y: (vector.y / length),
-        };
-
-        ctx.beginPath();
-        ctx.moveTo(start.x, start.y + 40);
-        ctx.lineTo(
-          start.x + vectorNormalized.x * 20,
-          start.y + 40 + vectorNormalized.y * 20,
-        );
+        ctx.moveTo(startB.x, startB.y);
+        ctx.lineTo(startB.x + vectorB.x, startB.y + vectorB.y);
         ctx.stroke();
       }
     </script>
