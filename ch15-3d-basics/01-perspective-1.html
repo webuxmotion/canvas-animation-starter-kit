@@ -1,0 +1,132 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Perspective 1</title>
+    <link rel="stylesheet" href="./include/style.css" />
+  </head>
+  <body>
+    <canvas id="canvas" width="500" height="500"></canvas>
+
+    <script src="./include/utils.js"></script>
+    <script src="./classes/ball.js"></script>
+    <script src="../libs/dat.gui/dat.gui.min.js"></script>
+    <script>
+      window.onload = function () {
+        var canvas = document.getElementById("canvas"),
+          ctx = canvas.getContext("2d"),
+          ball = new Ball();
+
+        const colors = [
+          "#685EF3",
+          "#CC3EE0",
+          "#FE3F61",
+          "#FC6439",
+          "#85C745",
+          "#32C9B6",
+          "#258EFD",
+        ];
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const balls = [];
+
+        const params = {
+          xpos: 0,
+          ypos: 0,
+          zpos: 0,
+          fl: 250,
+          vpX: canvas.width / 2,
+          vpY: canvas.height / 2,
+          ballsCount: 5000,
+        };
+
+        for (let i = 0; i < params.ballsCount; i++) {
+          const ball = new Ball();
+          ball.coords = {
+            x: Math.random() * 3000 - 1500,
+            y: Math.random() * 3000 - 1500,
+            z: Math.random() * 2000,
+          };
+          ball.lineWidth = 0;
+          const idx = Math.floor(Math.random() * colors.length);
+          ball.color = colors[idx];
+          balls.push(ball);
+        }
+
+        const gui = new dat.GUI();
+
+        gui.add(params, "vpX", 0, canvas.width);
+        gui.add(params, "vpY", 0, canvas.width);
+        gui.add(params, "fl", 0, 500);
+        gui.add(params, "xpos", -canvas.width, canvas.width);
+        gui.add(params, "ypos", -canvas.width, canvas.width);
+        gui.add(params, "zpos", -500, 3000);
+
+        drawFrame();
+
+        function drawFrame() {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          ctx.save();
+          // 1. Create linear gradient (from top-left to bottom-right)
+          const gradient = ctx.createLinearGradient(canvas.width, 0, 0, 0);
+
+          // 2. Add color stops (0.0 is start, 1.0 is end)
+          gradient.addColorStop(0, "#09090A");
+          gradient.addColorStop(0.3, "#2B2B2B");
+          gradient.addColorStop(1, "#4D4D4D");
+
+          // 3. Set the fill style to the gradient
+          ctx.fillStyle = gradient;
+
+          // 4. Draw a shape
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          ctx.restore();
+
+          balls.forEach((ball) => {
+            if (ball.coords.z > -params.fl) {
+              const scale = params.fl / (params.fl + ball.coords.z);
+              ball.scaleX = ball.scaleY = scale;
+              ball.x = params.vpX + ball.coords.x * scale;
+              ball.y = params.vpY + ball.coords.y * scale;
+              ball.draw(ctx);
+
+              ball.coords.z -= 1;
+            } else {
+              ball.coords.z = Math.random() * 3000;
+              const idx = Math.floor(Math.random() * colors.length);
+              ball.color = colors[idx];
+            }
+          });
+
+          // if (params.zpos > -params.fl) {
+          //   const scale = params.fl / (params.fl + params.zpos);
+          //   ball.scaleX = ball.scaleY = scale;
+          //   ball.x = params.vpX + params.xpos * scale;
+          //   ball.y = params.vpY + params.ypos * scale;
+          //   ball.visible = true;
+          // } else {
+          //   ball.visible = false;
+          // }
+
+          // if (ball.visible) {
+          //   ball.draw(ctx);
+          // }
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(params.vpX, params.vpY, 4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+
+          requestAnimationFrame(drawFrame);
+        }
+
+        requestAnimationFrame(drawFrame);
+      };
+    </script>
+  </body>
+</html>
