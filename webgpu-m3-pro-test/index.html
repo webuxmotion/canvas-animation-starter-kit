@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>Нативний тест WebGPU - M3 Pro</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; }
+        button { padding: 12px 24px; font-size: 16px; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 5px; font-weight: bold; }
+        button:disabled { background: #ccc; }
+        #output { background: #1e1e1e; color: #39ff14; padding: 15px; border-radius: 5px; margin-top: 20px; font-family: monospace; min-height: 50px; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>Нативний тест WebGPU на Apple M3 Pro</h1>
+    <p>Цей тест не завантажує нічого з інтернету. Він використовує чистий WebGPU вашого браузера для перемноження масиву чисел прямо на відеокарті.</p>
+    
+    <button id="run-btn">Запустити обчислення на GPU</button>
+    <div id="output">Тут з'явиться результат обчислень...</div>
+
+    <script>
+        document.getElementById('run-btn').onclick = async () => {
+            const outputDiv = document.getElementById('output');
+            outputDiv.innerText = "Ініціалізація GPU...";
+
+            // 1. Перевірка підтримки WebGPU
+            if (!navigator.gpu) {
+                outputDiv.innerText = "Помилка: WebGPU не підтримується у цьому браузері. Переконайтеся, що ви відкрили сторінку в Chrome.";
+                return;
+            }
+
+            try {
+                // 2. Отримуємо доступ до відеокарти
+                const adapter = await navigator.gpu.requestAdapter();
+                const device = await adapter.requestDevice();
+
+                // 3. Готуємо дані (простий масив з 4 чисел)
+                const inputData = new Float32Array([10, 20, 30, 40]);
+                
+                // 4. Створюємо буфер у пам'яті GPU для вхідних даних
+                const gpuBuffer = device.createBuffer({
+                    mappedAtCreation: true,
+                    size: inputData.byteLength,
+                    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC
+                });
+                new Float32Array(gpuBuffer.getMappedRange()).set(inputData);
+                gpuBuffer.unmap();
+
+                // 5. Створюємо буфер для отримання результату назад на CPU
+                const resultBuffer = device.createBuffer({
+                    size: inputData.byteLength,
+                    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+                });
+
+                // 6. Пишемо найпростіший обчислювальний шейдер (WGSL), який множить кожне число на 2
+                const shaderModule = device.createShaderModule({
+                    code: `
+                        @group(0) @binding(0) var<storage, read_write> data: array<f32>;
+                        @compute @workgroup_size(1)
+                        fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+                            data[id.x] = data[id.x] * 2.0;
+                        }
+                    `
+                });
+
+                // 7. Налаштовуємо конвеєр обчислень (Pipeline)
+                const pipeline = device.createComputePipeline({
+                    layout: 'auto',
+                    compute: { module: shaderModule, entryPoint: 'main' }
+                });
+
+                const bindGroup = device.createBindGroup({
+                    layout: pipeline.getBindGroupLayout(0),
+                    entries: [{ binding: 0, resource: { buffer: gpuBuffer } }]
+                });
+
+                // 8. Записуємо та виконуємо команду на GPU
+                const commandEncoder = device.createCommandEncoder();
+                const passEncoder = commandEncoder.beginComputePass();
+                passEncoder.setPipeline(pipeline);
+                passEncoder.setBindGroup(0, bindGroup);
+                passEncoder.dispatchWorkgroups(inputData.length);
+                passEncoder.end();
+
+                // Копіюємо результат назад у доступний для читання буфер
+                commandEncoder.copyBufferToBuffer(gpuBuffer, 0, resultBuffer, 0, inputData.byteLength);
+                device.queue.submit([commandEncoder.finish()]);
+
+                // 9. Зчитуємо фінальний результат
+                await resultBuffer.mapAsync(GPUMapMode.READ);
+                const resultArray = new Float32Array(resultBuffer.getMappedRange());
+
+                // Виводимо результат на екран
+                outputDiv.innerText = `Успіх! WebGPU працює локально.\n\nВхідні дані: [${inputData.join(', ')}]\nРезультат обчислень GPU (помножено на 2): [${resultArray.join(', ')}]`;
+                
+                resultBuffer.unmap();
+            } catch (err) {
+                outputDiv.innerText = "Помилка під час обчислень: " + err.message;
+                console.error(err);
+            }
+        };
+    </script>
+</body>
+</html>
