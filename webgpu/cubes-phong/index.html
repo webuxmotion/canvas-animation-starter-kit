@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebGPU 3D Phong Shading Cubes</title>
+    <style>
+      html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #050608; }
+      canvas { display: block; width: 100%; height: 100%; }
+      #info { position: absolute; top: 20px; left: 20px; color: #39ff14; font-family: monospace; font-size: 16px; background: rgba(0,0,0,0.85); padding: 15px; border-radius: 8px; border: 1px solid #222; pointer-events: none; z-index: 10; line-height: 1.5; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+      .highlight { color: #fff; font-weight: bold; }
+    </style>
+  </head>
+  <body>
+    <div id="info">
+      Об'єктів: <span class="highlight" id="cubes-val">0</span> 3D Кубів<br>
+      Продуктивність: <span class="highlight" id="fps-val">0</span> FPS<br>
+      Освітлення: <span style="color: #00ffff; font-weight: bold;">Глянець Фонга (Дифузне + Дзеркальні Бліки)</span><br>
+      Обчислення: <span style="color: #39ff14;">100% GPU M3 Pro</span>
+    </div>
+    <canvas id="gpuCanvas"></canvas>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

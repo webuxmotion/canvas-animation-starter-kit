@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Canvas 2D Responsive Lines Performance Test</title>
+    <style>
+      html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #050508; }
+      canvas { display: block; width: 100%; height: 100%; }
+      #info { 
+        position: absolute; 
+        top: 20px; 
+        left: 20px; 
+        color: #ff3b30; /* Змінив колір на червоний для Canvas 2D */
+        font-family: monospace; 
+        font-size: 16px; 
+        background: rgba(0,0,0,0.85); 
+        padding: 15px; 
+        border-radius: 8px; 
+        border: 1px solid #222;
+        pointer-events: none; 
+        line-height: 1.5;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      }
+      .highlight { color: #fff; font-weight: bold; }
+    </style>
+  </head>
+  <body>
+    <div id="info">
+      Ліній на екрані: <span id="lines-val" class="highlight">0</span><br>
+      Продуктивність: <span id="fps-val" class="highlight">0</span> FPS<br>
+      Обчислень: <span id="ops-val" class="highlight">0</span> / сек<br>
+      Обчислення: <span style="color: #ff9500;">100% CPU (Послідовний цикл)</span>
+    </div>
+    <!-- Звичайний Canvas 2D -->
+    <canvas id="2dCanvas"></canvas>
+
+    <script type="module">
+      // РЕКОМЕНДОВАНИЙ ЛІМІТ ДЛЯ CPU: 10 000 ліній. 
+      // Спробуйте підняти до 50 000, щоб побачити, як впаде FPS.
+      const totalLines = 20000; 
+
+      document.getElementById("lines-val").innerText = totalLines.toLocaleString("uk-UA");
+
+      const canvas = document.getElementById("2dCanvas");
+      const ctx = canvas.getContext("2d");
+
+      // Математичний генератор випадкових чисел (Hash), аналогічний шейдерному WGSL
+      function hash(n) {
+        return (Math.abs(Math.sin(n) * 43758.5453123)) % 1;
+      }
+
+      // Змінні для профайлінгу продуктивності (FPS)
+      let lastTime = performance.now();
+      let frameCount = 0;
+      const fpsSpan = document.getElementById("fps-val");
+      const opsSpan = document.getElementById("ops-val");
+
+      // ГОЛОВНИЙ ЦИКЛ АНІМАЦІЇ (Працює на CPU)
+      function render(timestamp) {
+        frameCount++;
+        const now = performance.now();
+        if (now >= lastTime + 1000) {
+          const fps = Math.round((frameCount * 1000) / (now - lastTime));
+          fpsSpan.innerText = fps;
+
+          // Рахуємо кількість ітерацій математики в циклі (totalLines * FPS)
+          const opsPerSec = totalLines * fps;
+          opsSpan.innerText = opsPerSec.toLocaleString("uk-UA");
+
+          frameCount = 0;
+          lastTime = now;
+        }
+
+        // Адаптивний Resize під Retina-екран вашого Mac
+        const dpr = window.devicePixelRatio || 1;
+        const displayWidth = Math.floor(canvas.clientWidth * dpr);
+        const displayHeight = Math.floor(canvas.clientHeight * dpr);
+
+        if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+          canvas.width = displayWidth;
+          canvas.height = displayHeight;
+        }
+
+        // Очищення екрану (Космічний колір тла)
+        ctx.fillStyle = "rgb(5, 5, 8)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // КРИТИЧНО ДЛЯ ГАЛАКТИКИ: Вмикаємо адитивне змішування кольорів у Canvas 2D (аналог 'add' у WebGPU)
+        ctx.globalCompositeOperation = "lighter";
+
+        const canvasWidth = canvas.width;
+        const canvasHeight = canvas.height;
+        const minSize = Math.min(canvasWidth, canvasHeight);
+
+        // ПОСЛІДОВНИЙ ЦИКЛ НА CPU ЗАМІСТЬ ПАРАЛЕЛЬНОГО ШЕЙДЕРА
+        for (let i = 0; i < totalLines; i++) {
+          const idx = i;
+
+          // Математика розподілу (Спіраль)
+          const rand1 = hash(idx * 0.13);
+          const rand2 = hash(idx * 0.27);
+
+          const baseAngle = rand1 * 6.28318;
+          const radius = Math.sqrt(rand2) * minSize * 0.45;
+
+          const spiralOffset = radius * 0.003;
+          const centerX = (canvasWidth / 2.0) + Math.cos(baseAngle + spiralOffset) * radius;
+          const centerY = (canvasHeight / 2.0) + Math.sin(baseAngle + spiralOffset) * radius;
+
+          const lineLength = 5.0 + rand1 * 15.0;
+          const thickness = 1.0 + rand2 * 1.5;
+
+          // Швидкість за законами Кеплера
+          const speed = 0.001 * (1.0 + (100.0 / (radius + 20.0)));
+          const rotationAngle = baseAngle + timestamp * speed;
+
+          const c = Math.cos(rotationAngle);
+          const s = Math.sin(rotationAngle);
+
+          // Кінцева точка лінії з урахуванням тригонометричного повороту матриці
+          const endX = centerX + c * lineLength;
+          const endY = centerY + s * lineLength;
+
+          // Динамічний колір від часу та радіуса
+          const colorShift = radius / (minSize * 0.45);
+          const r = Math.floor((Math.sin(colorShift * 3.0 + timestamp * 0.001) * 0.5 + 0.5) * 255);
+          const g = Math.floor((Math.cos(colorShift * 2.0 - timestamp * 0.0005) * 0.3 + 0.2) * 255);
+          const b = Math.floor((Math.sin(colorShift * 1.5 + 1.0) * 0.4 + 0.6) * 255);
+          
+          // Мерехтіння
+          const alpha = 0.3 + rand1 * 0.7;
+
+          // Малювання лінії через 2D контекст
+          ctx.lineWidth = thickness;
+          ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+          
+          ctx.beginPath();
+          ctx.moveTo(centerX, centerY);
+          ctx.lineTo(endX, endY);
+          ctx.stroke();
+        }
+
+        // Повертаємо режим змішування в дефолтний для безпеки
+        ctx.globalCompositeOperation = "source-over";
+
+        requestAnimationFrame(render);
+      }
+
+      requestAnimationFrame(render);
+    </script>
+  </body>
+</html>

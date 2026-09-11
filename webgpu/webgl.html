@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebGL 2 Responsive Lines Performance Test</title>
+    <style>
+      html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #050508; }
+      canvas { display: block; width: 100%; height: 100%; }
+      #info { 
+        position: absolute; 
+        top: 20px; 
+        left: 20px; 
+        color: #ff00ff; /* Пурпуровий колір для WebGL 2 */
+        font-family: monospace; 
+        font-size: 16px; 
+        background: rgba(0,0,0,0.85); 
+        padding: 15px; 
+        border-radius: 8px; 
+        border: 1px solid #222;
+        pointer-events: none; 
+        line-height: 1.5;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      }
+      .highlight { color: #fff; font-weight: bold; }
+    </style>
+  </head>
+  <body>
+    <div id="info">
+      Ліній на екрані: <span id="lines-val" class="highlight">0</span><br>
+      Продуктивність: <span id="fps-val" class="highlight">0</span> FPS<br>
+      Запусків шейдера: <span id="ops-val" class="highlight">0</span> / сек<br>
+      Обчислення: <span style="color: #ff00ff;">100% GPU залізо (WebGL 2)</span>
+    </div>
+    <canvas id="glCanvas"></canvas>
+
+    <script type="module">
+      // Ставимо 1 000 000 ліній. WebGL 2 на вашому Mac M3 Pro легко триматиме 60-120 FPS
+      const totalLines = 2000000; 
+
+      document.getElementById("lines-val").innerText = totalLines.toLocaleString("uk-UA");
+
+      const canvas = document.getElementById("glCanvas");
+      const gl = canvas.getContext("webgl2");
+
+      if (!gl) {
+        alert("Ваш браузер не підтримує WebGL 2!");
+        throw new Error("WebGL 2 not supported.");
+      }
+
+      // 1. ШЕЙДЕРИ МОВОЮ GLSL ES 3.00
+      const vertexShaderSource = `#version 300 es
+        // Передаємо локальні вершини прямокутника лінії (всього 4 унікальні точки)
+        in vec2 a_local_position; 
+
+        // Створюємо Uniforms (аналог Uniform Buffer у WebGPU)
+        uniform vec2 u_resolution;
+        uniform float u_time;
+
+        out vec3 v_color;
+
+        float hash(float n) {
+            return fract(sin(n) * 43758.5453123);
+        }
+
+        void main() {
+            // Отримуємо унікальний ID лінії (аналог instance_index)
+            float idx = float(gl_InstanceID);
+
+            // МАТЕМАТИКА РОЗПОДІЛУ ЛІНІЙ (Спіраль Галактики)
+            float rand1 = hash(idx * 0.13);
+            float rand2 = hash(idx * 0.27);
+
+            float baseAngle = rand1 * 6.28318;
+            float radius = sqrt(rand2) * min(u_resolution.x, u_resolution.y) * 0.45;
+
+            float spiralOffset = radius * 0.003;
+            float centerX = (u_resolution.x / 2.0) + cos(baseAngle + spiralOffset) * radius;
+            float centerY = (u_resolution.y / 2.0) + sin(baseAngle + spiralOffset) * radius;
+
+            // Масштабуємо локальний прямокутник лінії
+            float lineLength = 5.0 + rand1 * 15.0;
+            float thickness = 1.0 + rand2 * 1.5;
+            
+            // Застосовуємо масштаб до базової вершини
+            vec2 scaledPos = a_local_position;
+            if (scaledPos.x > 0.0) { scaledPos.x = lineLength; }
+            if (scaledPos.y < 0.0) { scaledPos.y = -thickness / 2.0; }
+            if (scaledPos.y > 0.0) { scaledPos.y = thickness / 2.0; }
+
+            // Динамічний поворот за Кеплером
+            float speed = 0.001 * (1.0 + (100.0 / (radius + 20.0)));
+            float rotationAngle = baseAngle + u_time * speed;
+
+            float c = cos(rotationAngle);
+            float s = sin(rotationAngle);
+
+            // 2D Матриця обертання
+            float rotatedX = scaledPos.x * c - scaledPos.y * s;
+            float rotatedY = scaledPos.x * s + scaledPos.y * c;
+
+            // Кінцеві координати в пікселях
+            float pixelX = rotatedX + centerX;
+            float pixelY = rotatedY + centerY;
+
+            // Переведення в простір NDC (-1.0 до 1.0) для WebGL
+            float ndcX = (pixelX / u_resolution.x) * 2.0 - 1.0;
+            float ndcY = -((pixelY / u_resolution.y) * 2.0 - 1.0); // Інверсія по Y
+
+            gl_Position = vec4(ndcX, ndcY, 0.0, 1.0);
+
+            // Динамічна генерація кольорів
+            float colorShift = radius / (min(u_resolution.x, u_resolution.y) * 0.45);
+            float r = sin(colorShift * 3.0 + u_time * 0.001) * 0.5 + 0.5;
+            float g = cos(colorShift * 2.0 - u_time * 0.0005) * 0.3 + 0.2;
+            float b = sin(colorShift * 1.5 + 1.0) * 0.4 + 0.6;
+
+            v_color = vec3(r, g, b) * (0.3 + rand1 * 0.7);
+        }
+      `;
+
+      const fragmentShaderSource = `#version 300 es
+        precision highp float;
+        in vec3 v_color;
+        out vec4 outColor;
+
+        void main() {
+            outColor = vec4(v_color, 1.0);
+        }
+      `;
+
+      // Допоміжна функція компіляції шейдерів
+      function createShader(gl, type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+          console.error(gl.getShaderInfoLog(shader));
+          gl.deleteShader(shader);
+          return null;
+        }
+        return shader;
+      }
+
+      // Компілюємо програму WebGL 2
+      const vs = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+      const fs = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+      const program = gl.createProgram();
+      gl.attachShader(program, vs);
+      gl.attachShader(program, fs);
+      gl.linkProgram(program);
+
+      // Створюємо геометрію одного базового прямокутника (4 вершини)
+      // x від 0 до 1 (буде помножено на lineLength), y від -1 до 1 (буде помножено на halfThick)
+      const localVertices = new Float32Array([
+        0.0,  1.0, // Верхній лівий
+        1.0,  1.0, // Верхній правий
+        0.0, -1.0, // Нижній лівий
+        1.0, -1.0, // Нижній правий
+      ]);
+
+      // Мапа індексів (2 трикутники = 6 точок)
+      const indices = new Uint16Array([0, 1, 2, 2, 1, 3]);
+
+      // Буферизація геометрії в пам'ять GPU
+      const vao = gl.createVertexArray();
+      gl.bindVertexArray(vao);
+
+      const vertexBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, localVertices, gl.STATIC_DRAW);
+
+      const positionAttributeLocation = gl.getAttribLocation(program, "a_local_position");
+      gl.enableVertexAttribArray(positionAttributeLocation);
+      gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
+
+      const indexBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+
+      // Знаходимо лінки на Uniform-змінні
+      const resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution");
+      const timeUniformLocation = gl.getUniformLocation(program, "u_time");
+
+      // Налаштування лічильників продуктивності
+      let lastTime = performance.now();
+      let frameCount = 0;
+      const fpsSpan = document.getElementById("fps-val");
+      const opsSpan = document.getElementById("ops-val");
+
+      // 2. ГОЛОВНИЙ ЦИКЛ РЕНДЕРУ
+      function render(timestamp) {
+        frameCount++;
+        const now = performance.now();
+        if (now >= lastTime + 1000) {
+          const fps = Math.round((frameCount * 1000) / (now - lastTime));
+          fpsSpan.innerText = fps;
+          const opsPerSec = totalLines * 6 * fps;
+          opsSpan.innerText = opsPerSec.toLocaleString("uk-UA");
+          frameCount = 0;
+          lastTime = now;
+        }
+
+        // Авто-resize під Retina екран
+        const dpr = window.devicePixelRatio || 1;
+        const displayWidth = Math.floor(canvas.clientWidth * dpr);
+        const displayHeight = Math.floor(canvas.clientHeight * dpr);
+
+        if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+          canvas.width = displayWidth;
+          canvas.height = displayHeight;
+          gl.viewport(0, 0, canvas.width, canvas.height);
+        }
+
+        // Очищення екрану
+        gl.clearColor(0.01, 0.01, 0.02, 1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        // ВМИКАЄМО АДИТИВНЕ ЗМІШУВАННЯ В WEBGR (Аналог Blend у WebGPU)
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+
+        gl.useProgram(program);
+        gl.bindVertexArray(vao);
+
+        // Передаємо поточні розміри та час у шейдер
+        gl.uniform2f(resolutionUniformLocation, canvas.width, canvas.height);
+        gl.uniform1f(timeUniformLocation, timestamp);
+
+        // ГОЛОВНИЙ ВИКЛИК: Малюємо 6 індексних вершин прямокутника,
+        // повторюючи цей процес totalLines (1 000 000) разів через апаратний Інстансінг
+        gl.drawElementsInstanced(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0, totalLines);
+
+        requestAnimationFrame(render);
+      }
+
+      requestAnimationFrame(render);
+    </script>
+  </body>
+</html>

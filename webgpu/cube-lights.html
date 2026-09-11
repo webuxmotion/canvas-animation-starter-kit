@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebGPU 3D Cube with Real Light</title>
+    <style>
+      html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #0b0c10; }
+      canvas { display: block; width: 100%; height: 100%; }
+      #info { position: absolute; top: 20px; left: 20px; color: #39ff14; font-family: monospace; font-size: 16px; background: rgba(0,0,0,0.85); padding: 12px; border-radius: 6px; pointer-events: none; border: 1px solid #222; z-index: 10; }
+    </style>
+  </head>
+  <body>
+    <div id="info">3D Куб з освітленням на WebGPU<br>Математика: Дифузне світло Ламберта + Вектори Нормалей</div>
+    
+    <!-- Наш головний Canvas для рендерингу -->
+    <canvas id="gpuCanvas"></canvas>
+
+    <!-- Підключаємо JavaScript модуль із папки src -->
+    <script type="module" src="./cube-lights.js"></script>
+  </body>
+</html>
