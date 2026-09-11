@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebGPU Line-List Instancing Test</title>
+    <style>
+      html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #050508; }
+      canvas { display: block; width: 100%; height: 100%; }
+      #info { 
+        position: absolute; top: 20px; left: 20px; color: #39ff14; font-family: monospace; font-size: 16px; 
+        background: rgba(0, 0, 0, 0.85); padding: 15px; border-radius: 8px; border: 1px solid #222; 
+        pointer-events: none; line-height: 1.5; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5); 
+      }
+      .highlight { color: #fff; font-weight: bold; }
+    </style>
+  </head>
+  <body>
+    <div id="info">
+      Ліній на екрані: <span id="lines-val" class="highlight">0</span><br />
+      Продуктивність: <span id="fps-val" class="highlight">0</span> FPS<br />
+      Запусків шейдера: <span id="ops-val" class="highlight">0</span> / сек<br />
+      Топологія: <span style="color: #ff00ff; font-weight: bold;">line-list (Надлегка геометрія)</span><br />
+      Обчислення: <span style="color: #00ffff">100% GPU M3 Pro</span>
+    </div>
+    <canvas id="gpuCanvas"></canvas>
+
+    <script type="module">
+      if (!navigator.gpu) throw new Error("WebGPU not supported.");
+
+      // ТУТ ставимо відразу 3 мільйони ліній для стрес-тесту вашої теорії!
+      const totalLines = 4000000;
+
+      document.getElementById("lines-val").innerText = totalLines.toLocaleString("uk-UA");
+
+      const canvas = document.getElementById("gpuCanvas");
+      const adapter = await navigator.gpu.requestAdapter();
+      const device = await adapter.requestDevice();
+      const context = canvas.getContext("webgpu");
+      const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
+
+      const shaderCode = `
+        struct FrameData {
+            width: f32,
+            height: f32,
+            time: f32,
+            padding: f32,
+        };
+
+        @group(0) @binding(0) var<uniform> frameData : FrameData;
+
+        struct VertexOutput {
+            @builtin(position) position : vec4<f32>,
+            @location(0) color : vec3<f32>,
+        };
+
+        fn hash(n: f32) -> f32 {
+            return fract(sin(n) * 43758.5453123);
+        }
+
+        @vertex
+        fn vs_main(
+            @builtin(vertex_index) vertexIndex : u32, // Тепер приймає значення тільки 0 або 1 (2 вершини)
+            @builtin(instance_index) instanceIndex : u32
+        ) -> VertexOutput {
+            let idx = f32(instanceIndex);
+
+            let rand1 = hash(idx * 0.13);
+            let rand2 = hash(idx * 0.27);
+
+            let baseAngle = rand1 * 6.28318; 
+            let radius = sqrt(rand2) * min(frameData.width, frameData.height) * 0.45;
+
+            let spiralOffset = radius * 0.003;
+            let centerX = (frameData.width / 2.0) + cos(baseAngle + spiralOffset) * radius;
+            let centerY = (frameData.height / 2.0) + sin(baseAngle + spiralOffset) * radius;
+
+            let lineLength = 5.0 + rand1 * 15.0; 
+
+            // КРИТИЧНА ОПТИМІЗАЦІЯ: Локальні координати лінії складаються всього з двох точок!
+            // Точка 0 — початок лінії (0, 0), Точка 1 — кінець лінії (lineLength, 0)
+            var localPos = vec2<f32>(0.0, 0.0);
+            if (vertexIndex == 1u) {
+                localPos.x = lineLength;
+            }
+
+            let speed = 0.001 * (1.0 + (100.0 / (radius + 20.0)));
+            let rotationAngle = baseAngle + frameData.time * speed;
+
+            let c = cos(rotationAngle);
+            let s = sin(rotationAngle);
+
+            // Легке множення вектора 2D без зайвих індексів масивів прямокутника
+            let rotatedX = localPos.x * c;
+            let rotatedY = localPos.x * s;
+
+            let pixelX = rotatedX + centerX;
+            let pixelY = rotatedY + centerY;
+
+            let ndcX = (pixelX / frameData.width) * 2.0 - 1.0;
+            let ndcY = -((pixelY / frameData.height) * 2.0 - 1.0);
+
+            let colorShift = radius / (min(frameData.width, frameData.height) * 0.45);
+            let r = sin(colorShift * 3.0 + frameData.time * 0.001) * 0.5 + 0.5;
+            let g = cos(colorShift * 2.0 - frameData.time * 0.0005) * 0.3 + 0.2;
+            let b = sin(colorShift * 1.5 + 1.0) * 0.4 + 0.6;
+
+            var output : VertexOutput;
+            output.position = vec4<f32>(ndcX, ndcY, 0.0, 1.0);
+            output.color = vec3<f32>(r, g, b) * (0.3 + rand1 * 0.7); 
+            return output;
+        }
+
+        @fragment
+        fn fs_main(@location(0) color : vec3<f32>) -> @location(0) vec4<f32> {
+            return vec4<f32>(color, 1.0);
+        }
+      `;
+
+      const shaderModule = device.createShaderModule({ code: shaderCode });
+      const uniformBuffer = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+      const uniformData = new Float32Array(4);
+
+      const pipeline = device.createRenderPipeline({
+        layout: "auto",
+        vertex: { module: shaderModule, entryPoint: "vs_main" },
+        fragment: {
+          module: shaderModule,
+          entryPoint: "fs_main",
+          targets: [{
+              format: canvasFormat,
+              blend: {
+                color: { srcFactor: "src-alpha", dstFactor: "one", operation: "add" },
+                alpha: { srcFactor: "one", dstFactor: "one", operation: "add" },
+              },
+          }],
+        },
+        primitive: { 
+            // МІНЯЄМО ТОПОЛОГІЮ НА LINE-LIST
+            topology: "line-list" 
+        },
+      });
+
+      const bindGroup = device.createBindGroup({
+        layout: pipeline.getBindGroupLayout(0),
+        entries: [{ binding: 0, resource: { buffer: uniformBuffer } }],
+      });
+
+      let lastTime = performance.now();
+      let frameCount = 0;
+      const fpsSpan = document.getElementById("fps-val");
+      const opsSpan = document.getElementById("ops-val");
+
+      function render(timestamp) {
+        frameCount++;
+        const now = performance.now();
+        if (now >= lastTime + 1000) {
+          const fps = Math.round((frameCount * 1000) / (now - lastTime));
+          fpsSpan.innerText = fps;
+
+          // Рахуємо кількість запусків на основі 2-х вершин! (totalLines * 2 * FPS)
+          const opsPerSec = totalLines * 2 * fps;
+          opsSpan.innerText = opsPerSec.toLocaleString("uk-UA");
+
+          frameCount = 0;
+          lastTime = now;
+        }
+
+        const dpr = window.devicePixelRatio || 1;
+        const displayWidth = Math.floor(canvas.clientWidth * dpr);
+        const displayHeight = Math.floor(canvas.clientHeight * dpr);
+
+        if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+          canvas.width = displayWidth;
+          canvas.height = displayHeight;
+          context.configure({ device: device, format: canvasFormat, alphaMode: "opaque" });
+        }
+
+        uniformData[0] = canvas.width;
+        uniformData[1] = canvas.height;
+        uniformData[2] = timestamp;
+        uniformData[3] = 0.0;
+
+        device.queue.writeBuffer(uniformBuffer, 0, uniformData.buffer);
+
+        const commandEncoder = device.createCommandEncoder();
+        const renderPassEncoder = commandEncoder.beginRenderPass({
+          colorAttachments: [{
+              view: context.getCurrentTexture().createView(),
+              clearValue: { r: 0.01, g: 0.01, b: 0.02, a: 1.0 },
+              loadOp: "clear", storeOp: "store"
+          }],
+        });
+
+        renderPassEncoder.setPipeline(pipeline);
+        renderPassEncoder.setBindGroup(0, bindGroup);
+        
+        // КЛЮЧОВИЙ ВИКЛИК: Кажемо малювати лінію з 2-х точок, повторюючи її totalLines разів!
+        renderPassEncoder.draw(2, totalLines); 
+        
+        renderPassEncoder.end();
+        device.queue.submit([commandEncoder.finish()]);
+
+        requestAnimationFrame(render);
+      }
+
+      requestAnimationFrame(render);
+    </script>
+  </body>
+</html>
