@@ -1,0 +1,289 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Perspective 1</title>
+    <link rel="stylesheet" href="./include/style.css" />
+  </head>
+  <body>
+    <canvas id="canvas" width="500" height="500"></canvas>
+
+    <script src="./include/utils.js"></script>
+    <script src="./classes/ball.js"></script>
+    <script src="../libs/dat.gui/dat.gui.min.js"></script>
+    <script>
+      window.onload = function () {
+        var canvas = document.getElementById("canvas"),
+          ctx = canvas.getContext("2d"),
+          ball = new Ball();
+
+        const colors = [
+          "#685EF3",
+          "#CC3EE0",
+          "#FE3F61",
+          "#FC6439",
+          "#85C745",
+          "#32C9B6",
+          "#258EFD",
+        ];
+
+        let centerPoint = {
+          x: 0,
+          y: 0,
+          z: 400,
+        };
+
+        const boxBalls = [];
+
+        for (let i = 0; i < 100; i++) {
+          const ball1 = new Ball();
+          ball1.x = centerPoint.x;
+          ball1.y = centerPoint.y;
+          ball1.z = centerPoint.z;
+          ball1.coords = {
+            x: centerPoint.x,
+            y: centerPoint.y,
+            z: centerPoint.z,
+          };
+          ball1.vx = Math.random() - 0.5;
+          ball1.vy = Math.random() - 0.5;
+          ball1.vz = Math.random() - 0.5;
+
+          boxBalls.push(ball1);
+        }
+
+        let boxSize = 500;
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const balls = [];
+
+        const params = {
+          xpos: 0,
+          ypos: 0,
+          zpos: 0,
+          fl: 350,
+          vpX: canvas.width / 2,
+          vpY: canvas.height / 2,
+          ballsCount: 10,
+        };
+
+        let friction = 0.99;
+
+        for (let i = 0; i < params.ballsCount; i++) {
+          const ball = new Ball();
+          ball.coords = {
+            x: Math.random() * 3000 - 1500,
+            y: Math.random() * 3000 - 1500,
+            z: Math.random() * 2000,
+          };
+          ball.lineWidth = 0;
+          const idx = Math.floor(Math.random() * colors.length);
+          ball.color = colors[idx];
+          ball.vx = Math.random() * 5 - 2.5;
+          ball.vy = Math.random() * 5 - 2.5;
+          ball.vz = Math.random() * 10;
+          balls.push(ball);
+        }
+
+        const gui = new dat.GUI();
+
+        gui.add(params, "vpX", 0, canvas.width);
+        gui.add(params, "vpY", 0, canvas.width);
+        gui.add(params, "fl", 0, 1000);
+        gui.add(centerPoint, "x", -canvas.width, canvas.width);
+        gui.add(centerPoint, "y", -canvas.width, canvas.width);
+        gui.add(centerPoint, "z", -500, 3000);
+
+        drawFrame();
+
+        function drawFrame() {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          let boundaries = {
+            top: centerPoint.y - boxSize / 2,
+            bottom: centerPoint.y + boxSize / 2,
+            left: centerPoint.x - boxSize / 2,
+            right: centerPoint.x + boxSize / 2,
+            front: centerPoint.z - boxSize / 2,
+            back: centerPoint.z + boxSize / 2,
+          };
+
+          let A = {
+            x: boundaries.left,
+            y: boundaries.top,
+            z: boundaries.back,
+          };
+
+          let B = {
+            x: boundaries.right,
+            y: boundaries.top,
+            z: boundaries.back,
+          };
+
+          let C = {
+            x: boundaries.right,
+            y: boundaries.bottom,
+            z: boundaries.back,
+          };
+
+          let D = {
+            x: boundaries.left,
+            y: boundaries.bottom,
+            z: boundaries.back,
+          };
+
+          let A1 = {
+            x: boundaries.left,
+            y: boundaries.top,
+            z: boundaries.front,
+          };
+
+          let B1 = {
+            x: boundaries.right,
+            y: boundaries.top,
+            z: boundaries.front,
+          };
+
+          let C1 = {
+            x: boundaries.right,
+            y: boundaries.bottom,
+            z: boundaries.front,
+          };
+
+          let D1 = {
+            x: boundaries.left,
+            y: boundaries.bottom,
+            z: boundaries.front,
+          };
+
+          const points = [A, B, C, D];
+          const points1 = [A1, B1, C1, D1];
+
+          ctx.save();
+          // 1. Create linear gradient (from top-left to bottom-right)
+          const gradient = ctx.createLinearGradient(canvas.width, 0, 0, 0);
+
+          // 2. Add color stops (0.0 is start, 1.0 is end)
+          gradient.addColorStop(0, "#09090A");
+          gradient.addColorStop(0.3, "#2B2B2B");
+          gradient.addColorStop(1, "#4D4D4D");
+
+          // 3. Set the fill style to the gradient
+          ctx.fillStyle = gradient;
+
+          // 4. Draw a shape
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          ctx.restore();
+
+          balls.forEach((ball) => {
+            if (ball.coords.z > -params.fl) {
+              const scale = params.fl / (params.fl + ball.coords.z);
+              ball.scaleX = ball.scaleY = scale;
+              ball.x = params.vpX + ball.coords.x * scale;
+              ball.y = params.vpY + ball.coords.y * scale;
+              ball.draw(ctx);
+
+              ball.coords.z -= ball.vz;
+              ball.coords.x += ball.vx;
+              ball.coords.y += ball.vy;
+              ball.vz *= friction;
+              ball.vx *= friction;
+              ball.vy *= friction;
+            } else {
+              ball.coords.z = Math.random() * 3000;
+              const idx = Math.floor(Math.random() * colors.length);
+              ball.color = colors[idx];
+            }
+          });
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(params.vpX, params.vpY, 4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+
+          drawPoints(points);
+          drawPoints(points1);
+          drawRibs(points, points1);
+
+          boxBalls.sort((a, b) => b.coords.z - a.coords.z);
+
+          boxBalls.forEach((ball1) => {
+            const scale = params.fl / (params.fl + ball1.coords.z);
+            ball1.x = params.vpX + ball1.coords.x * scale;
+            ball1.y = params.vpY + ball1.coords.y * scale;
+            ball1.scaleX = ball1.scaleY = scale;
+            ball1.coords.z += ball1.vz;
+            ball1.coords.x += ball1.vx;
+            ball1.coords.y += ball1.vy;
+
+            if (ball1.coords.x > boundaries.right) {
+              ball1.vx *= -1;
+            } else if (ball1.coords.x < boundaries.left) {
+              ball1.vx *= -1;
+            }
+
+            if (ball1.coords.y < boundaries.top) {
+              ball1.vy *= -1;
+            } else if (ball1.coords.y > boundaries.bottom) {
+              ball1.vy *= -1;
+            }
+
+            if (ball1.coords.z > boundaries.back) {
+              ball1.vz *= -1;
+            } else if (ball1.coords.z < boundaries.front) {
+              ball1.vz *= -1;
+            }
+
+            ball1.draw(ctx);
+          });
+
+          requestAnimationFrame(drawFrame);
+        }
+
+        function drawRibs(points, points1) {
+          ctx.save();
+          ctx.beginPath();
+          points.forEach((p, i) => {
+            const scale = params.fl / (params.fl + p.z);
+
+            ctx.moveTo(params.vpX + p.x * scale, params.vpY + p.y * scale);
+            const p1 = points1[i];
+
+            const scale1 = params.fl / (params.fl + p1.z);
+            ctx.lineTo(params.vpX + p1.x * scale1, params.vpY + p1.y * scale1);
+          });
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        function drawPoints(points) {
+          ctx.save();
+          ctx.beginPath();
+          points.forEach((p, i) => {
+            const scale = params.fl / (params.fl + p.z);
+            if (i == 0) {
+              ctx.moveTo(params.vpX + p.x * scale, params.vpY + p.y * scale);
+            } else {
+              ctx.lineTo(params.vpX + p.x * scale, params.vpY + p.y * scale);
+            }
+
+            if (i == points.length - 1) {
+              ctx.lineTo(
+                params.vpX + points[0].x * scale,
+                params.vpY + points[0].y * scale,
+              );
+            }
+          });
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        requestAnimationFrame(drawFrame);
+      };
+    </script>
+  </body>
+</html>

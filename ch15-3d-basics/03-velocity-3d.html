@@ -42,6 +42,8 @@
           ballsCount: 10,
         };
 
+        let friction = 0.99;
+
         for (let i = 0; i < params.ballsCount; i++) {
           const ball = new Ball();
           ball.coords = {
@@ -52,6 +54,9 @@
           ball.lineWidth = 0;
           const idx = Math.floor(Math.random() * colors.length);
           ball.color = colors[idx];
+          ball.vx = Math.random() * 5 - 2.5;
+          ball.vy = Math.random() * 5 - 2.5;
+          ball.vz = Math.random() * 10;
           balls.push(ball);
         }
 
@@ -94,27 +99,18 @@
               ball.y = params.vpY + ball.coords.y * scale;
               ball.draw(ctx);
 
-              ball.coords.z -= 1;
+              ball.coords.z -= ball.vz;
+              ball.coords.x += ball.vx;
+              ball.coords.y += ball.vy;
+              ball.vz *= friction;
+              ball.vx *= friction;
+              ball.vy *= friction;
             } else {
               ball.coords.z = Math.random() * 3000;
               const idx = Math.floor(Math.random() * colors.length);
               ball.color = colors[idx];
             }
           });
-
-          // if (params.zpos > -params.fl) {
-          //   const scale = params.fl / (params.fl + params.zpos);
-          //   ball.scaleX = ball.scaleY = scale;
-          //   ball.x = params.vpX + params.xpos * scale;
-          //   ball.y = params.vpY + params.ypos * scale;
-          //   ball.visible = true;
-          // } else {
-          //   ball.visible = false;
-          // }
-
-          // if (ball.visible) {
-          //   ball.draw(ctx);
-          // }
 
           ctx.save();
           ctx.beginPath();
