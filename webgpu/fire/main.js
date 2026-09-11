@@ -1,9 +1,7 @@
-window.addEventListener('DOMContentLoaded', async () => {
+window.addEventListener("DOMContentLoaded", async () => {
   if (!navigator.gpu) throw new Error("WebGPU not supported.");
 
-  const numParticles = 200000; 
-
-  document.getElementById("particles-val").innerText = numParticles.toLocaleString("uk-UA");
+  const numParticles = 300000;
 
   const canvas = document.getElementById("gpuCanvas");
   const adapter = await navigator.gpu.requestAdapter();
@@ -11,13 +9,17 @@ window.addEventListener('DOMContentLoaded', async () => {
   const context = canvas.getContext("webgpu");
   const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
 
-  // ====== 1. ШЕЙДЕР СИСТЕМИ ЧАСТИНОК ВОГНЮ (WGSL) ======
+  // ====== 1. ШЕЙДЕР СИСТЕМИ ЧАСТИНОК З ВІТРОМ ВІД МИШІ (WGSL) ======
   const shaderCode = `
     struct FrameData {
         width: f32,
         height: f32,
         time: f32,
         seed: f32,
+        mouseX: f32,
+        mouseY: f32,
+        mouseDX: f32,
+        mouseDY: f32,
     };
 
     struct Particle {
@@ -27,11 +29,9 @@ window.addEventListener('DOMContentLoaded', async () => {
         size: f32,
     };
 
-    // МАКЕТ 0: Для обчислювального конвеєра
     @group(0) @binding(0) var<uniform> frameDataCompute : FrameData;
     @group(0) @binding(1) var<storage, read_write> computeParticles : array<Particle>;
 
-    // МАКЕТ 1: Для графічного конвеєра (Окремі групи, щоб не було конфліктів)
     @group(0) @binding(0) var<uniform> frameDataRender : FrameData;
     @group(0) @binding(2) var<storage, read> renderParticles : array<Particle>;
 
@@ -61,8 +61,30 @@ window.addEventListener('DOMContentLoaded', async () => {
             p.vel.y = -(hash(randId * 0.56) * 3.5 + 2.0);
             p.size = hash(randId * 0.89) * 4.0 + 1.5;
         } else {
+            // МАТЕМАТИКА ВІТРУ ВІД МИШІ
+            let mousePos = vec2<f32>(frameDataCompute.mouseX, frameDataCompute.mouseY);
+            let mouseVel = vec2<f32>(frameDataCompute.mouseDX, frameDataCompute.mouseDY);
+            
+            // Рахуємо вектор відстані від миші до іскри
+            let toParticle = p.pos - mousePos;
+            let dist = length(toParticle);
+            
+            // Радіус дії вітру (150 пікселів навколо курсора)
+            const windRadius: f32 = 150.0;
+            
+            if (dist < windRadius && length(mouseVel) > 0.0) {
+                // Сила вітру затухає в міру віддалення від курсора
+                let force = (1.0 - (dist / windRadius)) * 0.25;
+                // Штовхаємо частинку в напрямку руху миші
+                p.vel += mouseVel * force;
+            }
+
+            // Рідна фізика багаття (рух вгору + тертя повітря)
             p.pos.x += p.vel.x + sin(frameDataCompute.time * 0.01 + p.pos.y * 0.02) * 0.4;
             p.pos.y += p.vel.y;
+            
+            // Уповільнення швидкості вітру з часом (тертя/затухання імпульсу)
+            p.vel.x *= 0.98;
             
             let centerDist = p.pos.x - (frameDataCompute.width / 2.0);
             p.pos.x -= centerDist * 0.015; 
@@ -116,85 +138,133 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   const shaderModule = device.createShaderModule({ code: shaderCode });
 
-  // ====== 2. РОЗДІЛЬНІ МАКЕТИ ЗВ'ЯЗКІВ (ДЛЯ СТАТУСУ БЕЗПЕКИ) ======
-  // Макет А: Тільки для Compute
+  // ====== 2. МАКЕТИ ЗВ'ЯЗКІВ (8 чисел f32 = 32 байти для Uniform) ======
   const computeLayout = device.createBindGroupLayout({
     entries: [
-      { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "uniform" } },
-      { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } }
-    ]
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "uniform" },
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "storage" },
+      },
+    ],
   });
 
-  // Макет Б: Тільки для Рендеру
   const renderLayout = device.createBindGroupLayout({
     entries: [
-      { binding: 0, visibility: GPUShaderStage.VERTEX, buffer: { type: "uniform" } },
-      { binding: 2, visibility: GPUShaderStage.VERTEX, buffer: { type: "read-only-storage" } }
-    ]
+      {
+        binding: 0,
+        visibility: GPUShaderStage.VERTEX,
+        buffer: { type: "uniform" },
+      },
+      {
+        binding: 2,
+        visibility: GPUShaderStage.VERTEX,
+        buffer: { type: "read-only-storage" },
+      },
+    ],
   });
 
-  // ====== 3. СТВОРЕННЯ БУФЕРІВ ======
-  const uniformBuffer = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-  const uniformData = new Float32Array(4);
+  const uniformBuffer = device.createBuffer({
+    size: 32,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  });
+  const uniformData = new Float32Array(8); // Пам'ять під 8 значень f32
 
-  const particleBufferSize = numParticles * 24; 
+  const particleBufferSize = numParticles * 24;
   const particleBuffer = device.createBuffer({
     size: particleBufferSize,
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
   });
 
   const initialData = new Float32Array(numParticles * 6);
-  for(let i=4; i<initialData.length; i+=6) { initialData[i] = -1.0; } 
+  for (let i = 4; i < initialData.length; i += 6) {
+    initialData[i] = -1.0;
+  }
   device.queue.writeBuffer(particleBuffer, 0, initialData.buffer);
 
-  // ====== 4. КОНВЕЄРИ ТА РОЗДІЛЬНІ БІНД-ГРУПИ ======
   const computePipeline = device.createComputePipeline({
     layout: device.createPipelineLayout({ bindGroupLayouts: [computeLayout] }),
-    compute: { module: shaderModule, entryPoint: "compute_main" }
+    compute: { module: shaderModule, entryPoint: "compute_main" },
   });
 
   const renderPipeline = device.createRenderPipeline({
     layout: device.createPipelineLayout({ bindGroupLayouts: [renderLayout] }),
     vertex: { module: shaderModule, entryPoint: "vs_main" },
-    fragment: { module: shaderModule, entryPoint: "fs_main", targets: [{ 
-        format: canvasFormat,
-        blend: {
-            color: { srcFactor: 'src-alpha', dstFactor: 'one', operation: 'add' },
-            alpha: { srcFactor: 'one', dstFactor: 'one', operation: 'add' }
-        }
-    }] },
-    primitive: { topology: "triangle-list" }
+    fragment: {
+      module: shaderModule,
+      entryPoint: "fs_main",
+      targets: [
+        {
+          format: canvasFormat,
+          blend: {
+            color: {
+              srcFactor: "src-alpha",
+              dstFactor: "one",
+              operation: "add",
+            },
+            alpha: { srcFactor: "one", dstFactor: "one", operation: "add" },
+          },
+        },
+      ],
+    },
+    primitive: { topology: "triangle-list" },
   });
 
-  // ГРУПА 1: Стерильно чиста для обчислень
   const computeBindGroup = device.createBindGroup({
     layout: computeLayout,
     entries: [
       { binding: 0, resource: { buffer: uniformBuffer } },
-      { binding: 1, resource: { buffer: particleBuffer } }
-    ]
+      { binding: 1, resource: { buffer: particleBuffer } },
+    ],
   });
 
-  // ГРУПА 2: Стерильно чиста для малювання
   const renderBindGroup = device.createBindGroup({
     layout: renderLayout,
     entries: [
       { binding: 0, resource: { buffer: uniformBuffer } },
-      { binding: 2, resource: { buffer: particleBuffer } }
-    ]
+      { binding: 2, resource: { buffer: particleBuffer } },
+    ],
+  });
+
+  // ====== 3. ОБРОБКА РУХУ МИШІ В JAVASCRIPT ======
+  let mouseX = 0;
+  let mouseY = 0;
+  let mouseDX = 0;
+  let mouseDY = 0;
+  let lastMouseX = 0;
+  let lastMouseY = 0;
+
+  window.addEventListener("mousemove", (e) => {
+    const dpr = window.devicePixelRatio || 1;
+    // Переводимо координати вікна у внутрішні пікселі Canvas Retina
+    mouseX = e.clientX * dpr;
+    mouseY = e.clientY * dpr;
+
+    // Обчислюємо швидкість та напрямок руху руки (Дельта)
+    mouseDX = mouseX - lastMouseX;
+    mouseDY = mouseY - lastMouseY;
+
+    lastMouseX = mouseX;
+    lastMouseY = mouseY;
   });
 
   let lastTime = performance.now();
   let frameCount = 0;
   const fpsSpan = document.getElementById("fps-val");
 
-  // ====== 5. ЧИСТИЙ ЦИКЛ З ПОВНИМ РОЗДІЛЕННЯМ КОНТЕКСТУ ======
+  // ====== 4. ЦИКЛ ОБЧИСЛЕНЬ ======
   function render(timestamp) {
     frameCount++;
     const now = performance.now();
     if (now >= lastTime + 1000) {
       fpsSpan.innerText = Math.round((frameCount * 1000) / (now - lastTime));
-      frameCount = 0; lastTime = now;
+      frameCount = 0;
+      lastTime = now;
     }
 
     const dpr = window.devicePixelRatio || 1;
@@ -202,44 +272,60 @@ window.addEventListener('DOMContentLoaded', async () => {
     const targetHeight = Math.floor(canvas.clientHeight * dpr);
 
     if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
-      canvas.width = targetWidth; canvas.height = targetHeight;
-      context.configure({ device: device, format: canvasFormat, alphaMode: "opaque" });
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      context.configure({
+        device: device,
+        format: canvasFormat,
+        alphaMode: "opaque",
+      });
     }
 
+    // Записуємо повну структуру в Uniform-буфер
     uniformData[0] = canvas.width;
     uniformData[1] = canvas.height;
     uniformData[2] = timestamp;
-    uniformData[3] = Math.random(); 
+    uniformData[3] = Math.random();
+    uniformData[4] = mouseX;
+    uniformData[5] = mouseY;
+    uniformData[6] = mouseDX;
+    uniformData[7] = mouseDY;
 
     device.queue.writeBuffer(uniformBuffer, 0, uniformData.buffer);
 
-    // ЕТАП 1: Обчислення (Працюємо тільки з computeBindGroup)
+    // Щоразу після відправки даних пригальмовуємо дельту швидкості миші,
+    // щоб вітер плавно затухав, якщо ви зупинили руку
+    mouseDX *= 0.85;
+    mouseDY *= 0.85;
+
+    // ЕТАП 1: Compute Pass
     const computeEncoder = device.createCommandEncoder();
     const computePass = computeEncoder.beginComputePass();
     computePass.setPipeline(computePipeline);
     computePass.setBindGroup(0, computeBindGroup);
-    computePass.dispatchWorkgroups(Math.ceil(numParticles / 256)); 
+    computePass.dispatchWorkgroups(Math.ceil(numParticles / 256));
     computePass.end();
     device.queue.submit([computeEncoder.finish()]);
 
-    // ЕТАП 2: Графіка (Працюємо тільки з renderBindGroup)
+    // ЕТАП 2: Render Pass
     const renderEncoder = device.createCommandEncoder();
     const renderPass = renderEncoder.beginRenderPass({
-      colorAttachments: [{
-        view: context.getCurrentTexture().createView(),
-        clearValue: { r: 0.01, g: 0.01, b: 0.015, a: 1.0 }, 
-        loadOp: "clear", storeOp: "store"
-      }]
+      colorAttachments: [
+        {
+          view: context.getCurrentTexture().createView(),
+          clearValue: { r: 0.01, g: 0.01, b: 0.015, a: 1.0 },
+          loadOp: "clear",
+          storeOp: "store",
+        },
+      ],
     });
 
     renderPass.setPipeline(renderPipeline);
-    renderPass.setBindGroup(0, renderBindGroup); // Передаємо ізольовану групу читання
-    renderPass.draw(6, numParticles); 
+    renderPass.setBindGroup(0, renderBindGroup);
+    renderPass.draw(6, numParticles);
     renderPass.end();
     device.queue.submit([renderEncoder.finish()]);
-
     requestAnimationFrame(render);
   }
-
   requestAnimationFrame(render);
 });
