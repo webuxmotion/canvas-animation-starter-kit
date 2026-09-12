@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <style>
+      canvas {
+        border: 1px solid blue;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas" width="500" height="500"></canvas>
+
+    <script type="module">
+      import getHorizontalScanIntersection from "./getHorizontalScanIntersection.js";
+
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+
+      const outPoint = { x: 0, y: 0 };
+
+      const A = {
+        x: 200,
+        y: 20,
+      };
+
+      const B = {
+        x: 20,
+        y: 300,
+      };
+
+      const C = {
+        x: 20,
+        y: 150,
+      };
+
+      const triangle = [A, B, C];
+      ctx.save();
+      ctx.beginPath();
+      for (let i = 0; i < triangle.length; i++) {
+        if (i == 0) {
+          ctx.moveTo(triangle[i].x, triangle[i].y);
+        } else {
+          ctx.lineTo(triangle[i].x, triangle[i].y);
+        }
+      }
+      ctx.lineTo(triangle[0].x, triangle[0].y);
+      ctx.stroke();
+      ctx.restore();
+
+      for (let i = 0; i < canvas.height; i++) {
+        const pointsX = [];
+
+        triangle.forEach((p, idx) => {
+          if (idx == triangle.length - 1) {
+            const intersectionPoint = getHorizontalScanIntersection(
+              p,
+              triangle[0],
+              i,
+            );
+
+            if (intersectionPoint && intersectionPoint.x >= 0) {
+              pointsX.push(intersectionPoint.x);
+            }
+          } else {
+            const intersectionPoint = getHorizontalScanIntersection(
+              p,
+              triangle[idx + 1],
+              i,
+            );
+            if (intersectionPoint && intersectionPoint.x >= 0) {
+              pointsX.push(intersectionPoint.x);
+            }
+          }
+        });
+
+        if (pointsX.length == 2) {
+          ctx.save();
+          ctx.moveTo(pointsX[0], i);
+          ctx.lineTo(pointsX[1], i);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+    </script>
+  </body>
+</html>
