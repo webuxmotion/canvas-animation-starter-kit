@@ -19,24 +19,13 @@
       const canvas = document.getElementById("canvas");
       const ctx = canvas.getContext("2d");
 
-      const outPoint = { x: 0, y: 0 };
-
-      const A = {
-        x: 200,
-        y: 20,
-      };
-
-      const B = {
-        x: 20,
-        y: 300,
-      };
-
-      const C = {
-        x: 20,
-        y: 150,
-      };
+      const A = { x: 200, y: 20 };
+      const B = { x: 20,  y: 300 };
+      const C = { x: 20,  y: 150 };
 
       const triangle = [A, B, C];
+
+      // Малюємо контур трикутника
       ctx.save();
       ctx.beginPath();
       for (let i = 0; i < triangle.length; i++) {
@@ -50,36 +39,41 @@
       ctx.stroke();
       ctx.restore();
 
+      // Алгоритм заповнення (Scanline Fill)
       for (let i = 0; i < canvas.height; i++) {
-        const pointsX = [];
+        const rawPointsX = [];
 
         triangle.forEach((p, idx) => {
-          if (idx == triangle.length - 1) {
-            const intersectionPoint = getHorizontalScanIntersection(
-              p,
-              triangle[0],
-              i,
-            );
+          const nextPoint = triangle[(idx === triangle.length - 1) ? 0 : idx + 1];
+          const intersectionPoint = getHorizontalScanIntersection(p, nextPoint, i);
 
-            if (intersectionPoint && intersectionPoint.x >= 0) {
-              pointsX.push(intersectionPoint.x);
-            }
-          } else {
-            const intersectionPoint = getHorizontalScanIntersection(
-              p,
-              triangle[idx + 1],
-              i,
-            );
-            if (intersectionPoint && intersectionPoint.x >= 0) {
-              pointsX.push(intersectionPoint.x);
-            }
+          if (intersectionPoint && intersectionPoint.x >= 0) {
+            // Округляємо до цілих пікселів, щоб Set міг чітко відсіяти дублікати на вершинах
+            rawPointsX.push(Math.round(intersectionPoint.x));
           }
         });
 
-        if (pointsX.length == 2) {
+        // 1. ВИПРАВЛЕННЯ: Фільтруємо дублікати (на вершинах Set залишить лише одну унікальну координату X)
+        const uniquePointsX = [...new Set(rawPointsX)];
+
+        // 2. ВИПРАВЛЕННЯ: Сортуємо координати зліва направо
+        uniquePointsX.sort((a, b) => a - b);
+
+        // 3. ВИПРАВЛЕННЯ: Малюємо залежно від кількості знайдених унікальних точок
+        if (uniquePointsX.length === 2) {
+          // Звичайна горизонтальна лінія заливки
           ctx.save();
-          ctx.moveTo(pointsX[0], i);
-          ctx.lineTo(pointsX[1], i);
+          ctx.beginPath();
+          ctx.moveTo(uniquePointsX[0], i);
+          ctx.lineTo(uniquePointsX[1], i);
+          ctx.stroke();
+          ctx.restore();
+        } else if (uniquePointsX.length === 1) {
+          // Лінія пройшла точно через вершину — малюємо один піксель (лінія довжиною 1px)
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(uniquePointsX[0], i);
+          ctx.lineTo(uniquePointsX[0] + 1, i);
           ctx.stroke();
           ctx.restore();
         }
